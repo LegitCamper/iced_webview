@@ -2,7 +2,7 @@
 
 A library to embed Web views in iced applications
 
-> Note: Currently this library only supports Ultralight/Webkit, but more rendering engines are planned to be supported.
+> Note: Currently this library only supports [Ultralight]/Webkit, but more rendering engines are planned to be supported.
 
 #### examples:
 
@@ -30,3 +30,6 @@ The samples compiled rely on dynamic libraries provided by `Ultralight`:
 These can be downloaded from the [Ultralight SDK].
 
 > Rust will download them during build as well, but are kept inside the `target` directory.
+
+[Ultralight]: https://ultralig.ht
+[Ultralight SDK]: https://ultralig.ht/download/
