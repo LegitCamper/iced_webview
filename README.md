@@ -1,4 +1,4 @@
-# Iced_webview
+# Iced_webview [![Rust](https://github.com/LegitCamper/iced_webview/actions/workflows/rust.yml/badge.svg)](https://github.com/LegitCamper/iced_webview/actions/workflows/rust.yml)
 
 A library to embed Web views in iced applications
 
@@ -11,9 +11,9 @@ A library to embed Web views in iced applications
 cargo run --example embedded_webview --features ultralight-resources
 ```
 
-## Extra files
+## Extra files (Resources)
 
-You need to include `resources` folder in the execution directory.
+You need to include `resources` folder in the execution directory(same level as Cargo.toml).
 
 You can find the resources folder in the [Ultralight SDK]
 

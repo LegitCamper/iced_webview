@@ -1,10 +1,10 @@
 [package]
 name = "iced_webview"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 rust-version = "1.81.0"
 description = "iced webview library"
-repository = "https://github.com/LegitCamper/rust-browser"
+repository = "https://github.com/LegitCamper/iced_webview/"
 
 [profile.dev]
 incremental = true
@@ -12,27 +12,15 @@ opt-level = "s"
 lto = "thin"
 
 [features]
-default = ["ultralight", "native-tls"]
+default = ["ultralight"]
 ultralight = ["ul-next"]
 ultralight-resources = []
-native-tls = ["reqwest/native-tls"]
-rustls-tls = ["reqwest/rustls-tls"]
 
 [dependencies]
 clipboard-rs = "0.2.1"
 iced = { version = "0.13", features = ["advanced", "image", "tokio", "lazy"] }
-iced_aw = { version = "0.10", features = ["tab_bar", "selection_list"] }
-iced_fonts = { version = "0.1.1", features = ["bootstrap"] }
-iced_on_focus_widget = "0.1.1"
-iced_event_wrapper = { git = "https://github.com/LegitCamper/iced_event_wrapper" }
 rand = "0.8.5"
-reqwest = "0.12.5"
-serde = "1.0.207"
-serde_json = "1.0.124"
 smol_str = "0.2.2"
-strum = { version = "0.26.3", features = ["derive"] }
-strum_macros = "0.26.4"
-tempfile = "3.12.0"
 ul-next = { version = "0.4", optional = true }
 url = "2.5.2"
 html = "0.6.3"

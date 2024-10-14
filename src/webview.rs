@@ -257,12 +257,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         if let Some(current_tab) = self.engine.get_tabs().get_current() {
             WebViewWidget::new(self.view_size, current_tab.get_view()).into()
         } else {
-            iced_event_wrapper::wrapper(ImageInfo::default().as_image())
-                .always_ignore_events()
-                .on_bounds_change(|bounds: Size| {
-                    Action::Resize(Size::new(bounds.width as u32, bounds.height as u32))
-                })
-                .into()
+            WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
         }
     }
 
@@ -270,12 +265,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         if let Some(current_tab) = self.engine.get_tabs().get(id) {
             WebViewWidget::new(self.view_size, current_tab.get_view()).into()
         } else {
-            iced_event_wrapper::wrapper(ImageInfo::default().as_image())
-                .always_ignore_events()
-                .on_bounds_change(|bounds: Size| {
-                    Action::Resize(Size::new(bounds.width as u32, bounds.height as u32))
-                })
-                .into()
+            WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
         }
     }
 }
