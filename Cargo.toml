@@ -13,7 +13,7 @@ lto = "thin"
 
 [features]
 default = ["ultralight"]
-ultralight = ["ul-next"]
+ultralight = ["dep:ul-next"]
 ultralight-resources = []
 
 [dependencies]
