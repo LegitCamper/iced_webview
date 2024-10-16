@@ -4,6 +4,8 @@ A library to embed Web views in iced applications
 
 > Note: Currently this library only supports [Ultralight]/Webkit, but more rendering engines are planned to be supported.
 
+> [Ultralight has its own licence](https://ultralig.ht/pricing/) that should be reviewed before deciding if it works for you
+
 #### examples:
 
 ##### `examples/embedded_webview`
