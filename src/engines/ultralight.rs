@@ -1,7 +1,7 @@
 use clipboard_rs::{Clipboard, ClipboardContext};
 use iced::keyboard::{self};
 use iced::mouse::{self, ScrollDelta};
-use iced::{Point, Size};
+use iced::{Point, Rectangle};
 use smol_str::SmolStr;
 use std::sync::{Arc, RwLock};
 use ul_next::{
@@ -10,13 +10,13 @@ use ul_next::{
     key_code::VirtualKeyCode,
     platform,
     renderer::Renderer,
-    view::{View, ViewConfig},
+    view,
     window::Cursor,
     Surface,
 };
 use url::Url;
 
-use super::{Engine, PageType, PixelFormat, Tab, TabInfo, Tabs};
+use super::{Engine, PageType, PixelFormat, View, ViewInfo};
 
 struct UlClipboard {
     ctx: ClipboardContext,
@@ -35,13 +35,13 @@ impl platform::Clipboard for UlClipboard {
     }
 }
 
-pub struct UltalightTabInfo {
+pub struct UltalightViewInfo {
     surface: Surface,
-    view: View,
+    view: view::View,
     cursor: Arc<RwLock<mouse::Interaction>>,
 }
 
-impl TabInfo for UltalightTabInfo {
+impl ViewInfo for UltalightViewInfo {
     fn title(&self) -> String {
         self.view.title().unwrap_or("Title Error".to_string())
     }
@@ -53,8 +53,8 @@ impl TabInfo for UltalightTabInfo {
 
 pub struct Ultralight {
     renderer: Renderer,
-    view_config: ViewConfig,
-    tabs: Tabs<UltalightTabInfo>,
+    view_config: view::ViewConfig,
+    views: Vec<View<UltalightViewInfo>>,
 }
 
 impl Default for Ultralight {
@@ -67,26 +67,27 @@ impl Default for Ultralight {
         });
 
         let renderer = Renderer::create(config).expect("Failed to create ultralight renderer");
-        let view_config = ViewConfig::start()
+        let view_config = view::ViewConfig::start()
             .initial_device_scale(1.0)
             .font_family_standard("Arial")
             .is_accelerated(false)
             .build()
-            .unwrap();
+            .expect("Failed to build rendering config");
 
         Self {
             renderer,
             view_config,
-            tabs: Tabs::new(),
+            views: Vec::new(),
         }
     }
 }
 
 impl Ultralight {
-    pub fn new(font: &str, scale: f64, accelerated: bool) -> Self {
+    pub fn new(font: &str, scale: f64, accelerated: bool, user_agent: &str) -> Self {
         accelerated.then(|| panic!("Ultralight acceleration is currently unsupported"));
         Self {
-            view_config: ViewConfig::start()
+            view_config: view::ViewConfig::start()
+                .user_agent(user_agent)
                 .initial_device_scale(scale)
                 .font_family_standard(font)
                 .is_accelerated(accelerated)
@@ -98,25 +99,25 @@ impl Ultralight {
 }
 
 impl Engine for Ultralight {
-    type Info = UltalightTabInfo;
+    type Info = UltalightViewInfo;
 
     fn do_work(&self) {
         self.renderer.update()
     }
 
-    fn force_need_render(&self) {
-        self.get_tabs()
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn force_need_render(&self, id: usize) {
+        self.get_views()
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .set_needs_paint(true)
     }
 
-    fn need_render(&self) -> bool {
-        self.get_tabs()
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn need_render(&self, id: usize) -> bool {
+        self.get_views()
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .needs_paint()
@@ -126,81 +127,95 @@ impl Engine for Ultralight {
         self.renderer.render();
     }
 
-    fn size(&self) -> Option<(u32, u32)> {
-        let view = &self.tabs.get_current()?.info.view;
-        Some((view.width(), view.height()))
-    }
-
-    fn resize(&mut self, size: Size<u32>) {
-        self.tabs.tabs.iter().for_each(|tab| {
-            tab.info.view.resize(size.width, size.height);
-            tab.info.surface.resize(size.width, size.height);
+    fn resize(&mut self, size: Rectangle) {
+        self.views.iter().for_each(|view| {
+            view.info.view.resize(size.width as u32, size.height as u32);
+            view.info
+                .surface
+                .resize(size.width as u32, size.height as u32);
         })
     }
 
-    fn pixel_buffer(&mut self) -> Option<(PixelFormat, Vec<u8>)> {
+    fn pixel_buffer(&mut self, id: usize, size: Rectangle) -> (PixelFormat, Vec<u8>) {
         self.render();
 
-        let size = self.size()?;
         let mut vec = Vec::new();
-        match self.tabs.get_current_mut()?.info.surface.lock_pixels() {
+        match self
+            .views
+            .get_mut(id as usize)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
+            .info
+            .surface
+            .lock_pixels()
+        {
             Some(pixel_data) => vec.extend_from_slice(&pixel_data),
             None => {
-                let image = vec![255; size.0 as usize * size.1 as usize];
+                let image = vec![255; (size.height * size.width) as usize];
                 vec.extend_from_slice(&image)
             }
         };
 
-        Some((PixelFormat::Bgra, vec))
+        (PixelFormat::Bgra, vec)
     }
 
-    fn get_cursor(&self) -> mouse::Interaction {
+    fn get_cursor(&self, id: usize) -> mouse::Interaction {
         *self
-            .tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+            .views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .cursor
             .read()
             .unwrap()
     }
 
-    fn goto_html(&self, html: &str) {
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn goto_html(&self, id: usize, html: &str) {
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .load_html(html)
             .unwrap();
     }
 
-    fn goto_url(&self, url: &Url) {
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn goto_url(&self, id: usize, url: &Url) {
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .load_url(url.as_ref())
             .unwrap();
     }
 
-    fn has_loaded(&self) -> Option<bool> {
-        Some(!self.tabs.get_current()?.info.view.is_loading())
+    fn has_loaded(&self, id: usize) -> bool {
+        !self
+            .views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
+            .info
+            .view
+            .is_loading()
     }
 
-    fn get_tabs(&self) -> &Tabs<UltalightTabInfo> {
-        &self.tabs
+    fn get_views(&self) -> &Vec<View<UltalightViewInfo>> {
+        &self.views
     }
 
-    fn get_tabs_mut(&mut self) -> &mut Tabs<UltalightTabInfo> {
-        &mut self.tabs
+    fn get_views_mut(&mut self) -> &mut Vec<View<UltalightViewInfo>> {
+        &mut self.views
     }
 
-    fn new_tab(&mut self, page_type: PageType, size: Size<u32>) -> Tab<UltalightTabInfo> {
+    fn new_view(&mut self, page_type: PageType, size: Rectangle) -> usize {
         let view = self
             .renderer
-            .create_view(size.width, size.height, &self.view_config, None)
+            .create_view(
+                size.width as u32,
+                size.height as u32,
+                &self.view_config,
+                None,
+            )
             .unwrap();
 
         let surface = view.surface().unwrap();
@@ -210,7 +225,7 @@ impl Engine for Ultralight {
         }
 
         // RGBA
-        debug_assert!(surface.row_bytes() / size.width == 4);
+        debug_assert!(surface.row_bytes() / size.width as u32 == 4);
 
         let cursor = Arc::new(RwLock::new(mouse::Interaction::Idle));
         let cb_cursor = cursor.clone();
@@ -234,61 +249,64 @@ impl Engine for Ultralight {
             };
         });
 
-        let info = UltalightTabInfo {
+        let info = UltalightViewInfo {
             surface,
             view,
             cursor,
         };
 
-        Tab::new(info)
+        let view = View::new(info);
+        let id = view.id;
+        self.views.push(view);
+        id
     }
 
-    fn refresh(&self) {
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn refresh(&self, id: usize) {
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .reload();
     }
 
-    fn go_forward(&self) {
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn go_forward(&self, id: usize) {
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .go_forward();
     }
 
-    fn go_back(&self) {
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn go_back(&self, id: usize) {
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .go_back();
     }
 
-    fn focus(&self) {
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn focus(&self, id: usize) {
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .focus();
     }
 
-    fn unfocus(&self) {
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+    fn unfocus(&self, id: usize) {
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .unfocus();
     }
 
-    fn scroll(&self, delta: ScrollDelta) {
+    fn scroll(&self, id: usize, delta: ScrollDelta) {
         let scroll_event = match delta {
             ScrollDelta::Lines { x, y } => ScrollEvent::new(
                 ul_next::event::ScrollEventType::ScrollByPixel,
@@ -303,15 +321,15 @@ impl Engine for Ultralight {
             )
             .unwrap(),
         };
-        self.tabs
-            .get_current()
-            .expect("Unable to get current tab id")
+        self.views
+            .get(id)
+            .expect(Ultralight::CANNOT_FIND_VIEW)
             .info
             .view
             .fire_scroll_event(scroll_event);
     }
 
-    fn handle_keyboard_event(&self, event: keyboard::Event) {
+    fn handle_keyboard_event(&self, id: usize, event: keyboard::Event) {
         let key_event = match event {
             keyboard::Event::KeyPressed {
                 key,
@@ -346,27 +364,27 @@ impl Engine for Ultralight {
         };
 
         if let Some(key_event) = key_event {
-            self.tabs
-                .get_current()
-                .expect("Unable to get current tab id")
+            self.views
+                .get(id)
+                .expect(Ultralight::CANNOT_FIND_VIEW)
                 .info
                 .view
                 .fire_key_event(key_event);
         }
     }
 
-    fn handle_mouse_event(&mut self, point: Point, event: mouse::Event) {
+    fn handle_mouse_event(&mut self, id: usize, point: Point, event: mouse::Event) {
         match event {
             mouse::Event::ButtonReleased(mouse::Button::Forward) => {
-                self.go_forward();
+                self.go_forward(id);
             }
             mouse::Event::ButtonReleased(mouse::Button::Back) => {
-                self.go_back();
+                self.go_back(id);
             }
             mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                self.tabs
-                    .get_current()
-                    .expect("Unable to get current tab id")
+                self.views
+                    .get(id)
+                    .expect(Ultralight::CANNOT_FIND_VIEW)
                     .info
                     .view
                     .fire_mouse_event(
@@ -380,9 +398,9 @@ impl Engine for Ultralight {
                     );
             }
             mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                self.tabs
-                    .get_current()
-                    .expect("Unable to get current tab id")
+                self.views
+                    .get(id)
+                    .expect(Ultralight::CANNOT_FIND_VIEW)
                     .info
                     .view
                     .fire_mouse_event(
@@ -396,9 +414,9 @@ impl Engine for Ultralight {
                     );
             }
             mouse::Event::ButtonPressed(mouse::Button::Right) => {
-                self.tabs
-                    .get_current()
-                    .expect("Unable to get current tab id")
+                self.views
+                    .get(id)
+                    .expect(Ultralight::CANNOT_FIND_VIEW)
                     .info
                     .view
                     .fire_mouse_event(
@@ -412,9 +430,9 @@ impl Engine for Ultralight {
                     );
             }
             mouse::Event::ButtonReleased(mouse::Button::Right) => {
-                self.tabs
-                    .get_current()
-                    .expect("Unable to get current tab id")
+                self.views
+                    .get(id)
+                    .expect(Ultralight::CANNOT_FIND_VIEW)
                     .info
                     .view
                     .fire_mouse_event(
@@ -428,9 +446,9 @@ impl Engine for Ultralight {
                     );
             }
             mouse::Event::CursorMoved { position: _ } => {
-                self.tabs
-                    .get_current()
-                    .expect("Unable to get current tab id")
+                self.views
+                    .get(id)
+                    .expect(Ultralight::CANNOT_FIND_VIEW)
                     .info
                     .view
                     .fire_mouse_event(
@@ -443,12 +461,12 @@ impl Engine for Ultralight {
                         .unwrap(),
                     );
             }
-            mouse::Event::WheelScrolled { delta } => self.scroll(delta),
+            mouse::Event::WheelScrolled { delta } => self.scroll(id, delta),
             mouse::Event::CursorLeft => {
-                self.unfocus();
+                self.unfocus(id);
             }
             mouse::Event::CursorEntered => {
-                self.focus();
+                self.focus(id);
             }
             _ => (),
         }

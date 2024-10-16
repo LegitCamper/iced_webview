@@ -3,11 +3,12 @@ use iced::{
     widget::{button, column, container, row, text},
     Element, Length, Subscription, Task,
 };
-use iced_webview::{webview, PageType, Ultralight, WebView};
+use iced_webview::{webview, Action, PageType, Ultralight, WebView};
 use std::time::Duration;
 
 fn main() -> iced::Result {
     iced::application("An embedded web view", App::update, App::view)
+        .antialiasing(true)
         .subscription(App::subscription)
         .run_with(App::new)
 }
@@ -25,8 +26,9 @@ struct App {
     webview: WebView<Ultralight, Message>,
     show_webview: bool,
     webview_url: Option<String>,
-    num_tabs: u32,
-    current_tab: u32,
+    num_views: usize,
+    view_ids: Vec<usize>,
+    current_view: usize,
 }
 
 impl App {
@@ -39,8 +41,9 @@ impl App {
                 webview,
                 show_webview: false,
                 webview_url: None,
-                num_tabs: 1,
-                current_tab: 0,
+                num_views: 1,
+                view_ids: Vec::new(),
+                current_view: 0,
             },
             task.map(Message::WebView),
         )
@@ -58,17 +61,16 @@ impl App {
                 Task::none()
             }
             Message::CreateWebview => {
-                self.num_tabs += 1;
-                self.webview.update(webview::Action::CreateTab)
+                self.num_views += 1;
+                self.webview.update(Action::CreateView)
             }
             Message::SwitchWebview => {
-                if self.current_tab + 1 >= self.num_tabs {
-                    self.current_tab = 0;
+                if self.current_view + 1 >= self.num_views {
+                    self.current_view = 0;
                 } else {
-                    self.current_tab += 1;
+                    self.current_view += 1;
                 };
-                let tab = iced_webview::TabSelectionType::Index(self.current_tab as usize);
-                self.webview.update(webview::Action::ChangeTab(tab))
+                Task::none()
             }
         }
     }
@@ -89,8 +91,10 @@ impl App {
         ]]
         .push_maybe(if self.show_webview {
             Some(column![
-                text(format!("view index: {}", self.current_tab)),
-                self.webview.view().map(Message::WebView),
+                text(format!("view index: {}", self.current_view)),
+                self.webview
+                    .view(self.view_ids[self.current_view])
+                    .map(Message::WebView),
                 text(format!("Url: {:?}", self.webview_url)),
             ])
         } else {
@@ -101,7 +105,7 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         time::every(Duration::from_millis(10))
-            .map(|_| webview::Action::Update)
+            .map(|_| Action::Update)
             .map(Message::WebView)
     }
 }

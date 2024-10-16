@@ -1,11 +1,11 @@
 pub use html::root::Html;
-use iced::widget::image;
+use iced::{widget::image, Rectangle};
 
 pub mod engines;
-pub use engines::{DisplayTab, Engine, PageType, PixelFormat, Tab, TabInfo, Tabs};
+pub use engines::{Engine, PageType, PixelFormat, View, ViewInfo};
 
 pub mod webview;
-pub use webview::WebView;
+pub use webview::{Action, WebView};
 
 #[cfg(feature = "ultralight")]
 pub use engines::ultralight::Ultralight;
@@ -14,8 +14,8 @@ pub use engines::ultralight::Ultralight;
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageInfo {
     pub pixels: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
+    pub width: f32,
+    pub height: f32,
 }
 
 impl Default for ImageInfo {
@@ -30,10 +30,10 @@ impl Default for ImageInfo {
 
 impl ImageInfo {
     // The default dimentions
-    const WIDTH: u32 = 800;
-    const HEIGHT: u32 = 800;
+    const WIDTH: f32 = 1920.;
+    const HEIGHT: f32 = 1080.;
 
-    pub fn new(pixels: Vec<u8>, format: PixelFormat, width: u32, height: u32) -> Self {
+    pub fn new(pixels: Vec<u8>, format: PixelFormat, size: Rectangle) -> Self {
         // R, G, B, A
         assert_eq!(pixels.len() % 4, 0);
 
@@ -47,28 +47,16 @@ impl ImageInfo {
 
         Self {
             pixels,
-            width,
-            height,
+            width: size.width,
+            height: size.height,
         }
     }
 
     pub fn as_image(&self) -> image::Image<image::Handle> {
         image::Image::new(image::Handle::from_rgba(
-            self.width,
-            self.height,
+            self.width as u32,
+            self.height as u32,
             self.pixels.clone(),
         ))
-    }
-}
-
-/// Allows different widgets to interact in their native way
-#[derive(Debug, Clone, PartialEq)]
-pub enum TabSelectionType {
-    Id(u32),
-    Index(usize),
-}
-impl Default for TabSelectionType {
-    fn default() -> Self {
-        TabSelectionType::Index(0)
     }
 }
