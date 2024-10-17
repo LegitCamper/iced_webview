@@ -82,6 +82,10 @@ impl Engine for GoSub {
         todo!()
     }
 
+    fn remove_view(&mut self, id: usize) {
+        todo!()
+    }
+
     fn get_views(&self) -> Vec<View> {
         todo!()
     }

@@ -21,28 +21,32 @@ pub enum PixelFormat {
 
 pub trait Engine {
     fn do_work(&self);
-    fn need_render(&self) -> bool;
-    fn force_render(&self);
-    fn render(&mut self);
-    fn size(&self) -> Option<(u32, u32)>;
-    fn resize(&mut self, size: Size<u32>);
-    fn pixel_buffer(&mut self) -> Option<(PixelFormat, Vec<u8>)>;
+    fn need_render(&self, id: usize) -> bool;
+    fn force_render(&self, id: usize);
+    fn render(&mut self, id: usize);
+    fn resize(&mut self, size: Size<u32>); // doesnt need id, bc all views should be resized
+    fn pixel_buffer(&mut self, id: usize) -> Option<(PixelFormat, Vec<u8>)>;
 
-    fn get_cursor(&self) -> Interaction;
+    fn get_cursor(&self, id: usize) -> Interaction;
     // fn get_icon(&self) -> Image<Handle>;
-    fn goto_url(&self, url: &Url);
-    fn goto_html(&self, html: &str);
-    fn has_loaded(&self) -> Option<bool>;
+    fn goto_url(&self, id: usize, url: &Url);
+    fn goto_html(&self, id: usize, html: &str);
+    fn has_loaded(&self, id: usize) -> Option<bool>;
 
-    fn refresh(&self);
-    fn go_forward(&self);
-    fn go_back(&self);
-    fn focus(&self);
-    fn unfocus(&self);
+    fn new_view(&mut self, page_type: PageType, size: iced::Size<u32>) -> usize;
+    fn remove_view(&mut self, id: usize);
+    fn get_views(&self) -> Vec<View>;
+    fn get_view(&self, id: usize) -> View;
 
-    fn scroll(&self, delta: mouse::ScrollDelta);
-    fn handle_keyboard_event(&self, event: keyboard::Event);
-    fn handle_mouse_event(&mut self, point: Point, event: mouse::Event);
+    fn refresh(&self, id: usize);
+    fn go_forward(&self, id: usize);
+    fn go_back(&self, id: usize);
+    fn focus(&self, id: usize);
+    fn unfocus(&self, id: usize);
+
+    fn scroll(&self, id: usize, delta: mouse::ScrollDelta);
+    fn handle_keyboard_event(&self, id: usize, event: keyboard::Event);
+    fn handle_mouse_event(&mut self, id: usize, point: Point, event: mouse::Event);
 }
 
 /// Generic View used for external widgets

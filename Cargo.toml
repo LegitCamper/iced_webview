@@ -12,8 +12,8 @@ opt-level = "s"
 lto = "thin"
 
 [features]
-# default = ["ultralight"]
-default = ["gosub"]
+default = ["ultralight"]
+# default = ["gosub"]
 ultralight = ["dep:ul-next"]
 # automatically downloads ultralight resources
 ultralight-resources = []

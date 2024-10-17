@@ -17,10 +17,10 @@ use crate::{engines, ImageInfo, PageType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    ChangeTab(usize),
-    CloseCurrentTab,
-    CloseTab(usize),
-    CreateTab,
+    ChangeView(usize),
+    CloseCurrentView,
+    CloseView(usize),
+    CreateView,
     GoBackward,
     GoForward,
     GoToUrl(Url),
@@ -36,6 +36,7 @@ where
     Engine: engines::Engine,
 {
     engine: Engine,
+    current_view: usize,
     view_size: Size<u32>,
     new_view: PageType,
     on_close_view: Option<Box<dyn Fn(usize) -> Message>>,
@@ -51,6 +52,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         (
             WebView {
                 engine: Engine::default(),
+                current_view: 0,
                 view_size: Size::new(1920, 1080),
                 new_view,
                 on_close_view: None,
@@ -89,21 +91,18 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
     fn update_engine(&mut self) {
         self.engine.do_work();
-        if let Some(has_loaded) = self.engine.has_loaded() {
+        if let Some(has_loaded) = self.engine.has_loaded(self.current_view) {
             if has_loaded {
-                if self.engine.need_render() {
-                    if let Some((format, image_data)) = self.engine.pixel_buffer() {
+                if self.engine.need_render(self.current_view) {
+                    if let Some((format, image_data)) = self.engine.pixel_buffer(self.current_view)
+                    {
                         let view = ImageInfo::new(
                             image_data,
                             format,
                             self.view_size.width,
                             self.view_size.height,
                         );
-                        self.engine
-                            .get_views_mut()
-                            .get_current_mut()
-                            .expect("Unable to get current view id")
-                            .set_view(view)
+                        self.engine.get_view(self.current_view).set_view(view)
                     }
                 }
             } else {
@@ -123,8 +122,12 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
     fn force_update(&mut self) {
         self.engine.do_work();
-        if let Some((format, image_data)) = self.engine.pixel_buffer() {
-            if let Some(current_view) = self.engine.get_views_mut().get_current_mut() {
+        if let Some((format, image_data)) = self.engine.pixel_buffer(self.current_view) {
+            if let Some(current_view) = self
+                .engine
+                .get_views_mut(self.current_view)
+                .get_current_mut()
+            {
                 let view = ImageInfo::new(
                     image_data,
                     format,
@@ -140,37 +143,31 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         self.update_engine();
         let mut tasks = Vec::new();
         if let Some(on_url_change) = &self.on_url_change {
-            if let Some(current_tab) = self.engine.get_view().get_current() {
-                if self.url != current_tab.url() {
-                    self.url = current_tab.url();
+            if let Some(current_view) = self.engine.get_view().get_current() {
+                if self.url != current_view.url() {
+                    self.url = current_view.url();
                     tasks.push(Task::done(on_url_change(self.url.clone())))
                 }
             }
         }
         if let Some(on_title_change) = &self.on_title_change {
-            if let Some(current_tab) = self.engine.get_view().get_current() {
-                if self.title != current_tab.title() {
-                    self.title = current_tab.title();
+            if let Some(current_view) = self.engine.get_view().get_current() {
+                if self.title != current_view.title() {
+                    self.title = current_view.title();
                     tasks.push(Task::done(on_title_change(self.title.clone())))
                 }
             }
         }
         tasks.push(match action {
             Action::ChangeView(id) => {
-                self.engine.get_views_mut().set_current_id(id);
+                self.current_view = id;
                 Task::none()
             }
             Action::CloseCurrentView => {
-                let id = self
-                    .engine
-                    .get_view()
-                    .get_current_id()
-                    .expect("Unable to get current view id");
-
-                self.engine.get_views_mut().remove(id);
+                self.engine.remove_view(self.current_view);
 
                 if let Some(on_view_close) = &self.on_close_view {
-                    Task::done((on_view_close)(id))
+                    Task::done((on_view_close)(self.current_view))
                 } else {
                     Task::none()
                 }
@@ -187,14 +184,14 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             Action::CreateView => {
                 let new_view = self.new_view.clone();
                 let bounds = self.view_size;
-                let tab = self.engine.new_view(
-                    new_tab.clone(),
+                let view = self.engine.new_view(
+                    new_view.clone(),
                     Size::new(bounds.width + 10, bounds.height - 10),
                 );
-                let id = self.engine.get_tabs_mut().insert(tab);
-                self.engine.get_tabs_mut().set_current_id(id);
-                self.engine.force_render();
-                self.engine.resize(bounds);
+                let id = self.engine.get_views_mut().insert(view);
+                self.engine.get_views_mut().set_current_id(id);
+                self.engine.force_render(self.current_view);
+                self.engine.resize(self.current_view, bounds);
                 match new_view {
                     PageType::Url(url) => self
                         .engine
@@ -204,19 +201,19 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 Task::none()
             }
             Action::GoBackward => {
-                self.engine.go_back();
+                self.engine.go_back(self.current_view);
                 Task::none()
             }
             Action::GoForward => {
-                self.engine.go_forward();
+                self.engine.go_forward(self.current_view);
                 Task::none()
             }
             Action::GoToUrl(url) => {
-                self.engine.goto_url(&url);
+                self.engine.goto_url(self.current_view, &url);
                 Task::none()
             }
             Action::Refresh => {
-                self.engine.refresh();
+                self.engine.refresh(self.current_view);
                 Task::none()
             }
             Action::SendKeyboardEvent(event) => {
@@ -246,15 +243,8 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     }
 
     pub fn view(&self) -> Element<Action> {
-        if let Some(current_tab) = self.engine.get_view().get_current() {
-            WebViewWidget::new(self.view_size, current_tab.get_view()).into()
-        } else {
-            WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
-        }
-    }
-    pub fn view_id(&self, id: u32) -> Element<Action> {
-        if let Some(current_tab) = self.engine.get_view().get(id) {
-            WebViewWidget::new(self.view_size, current_tab.get_view()).into()
+        if let Some(current_view) = self.engine.get_view(self.current_view) {
+            WebViewWidget::new(self.view_size, current_view.get_view()).into()
         } else {
             WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
         }
