@@ -2,7 +2,7 @@ pub use html::root::Html;
 use iced::widget::image;
 
 pub mod engines;
-pub use engines::{DisplayView, Engine, PageType, PixelFormat, View, ViewInfo, Views};
+pub use engines::{Engine, PageType, PixelFormat, View};
 
 pub mod webview;
 pub use webview::WebView;

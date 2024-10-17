@@ -17,10 +17,10 @@ use crate::{engines, ImageInfo, PageType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    ChangeView(usize),
-    CloseCurrentView,
-    CloseView(usize),
-    CreateView,
+    ChangeTab(usize),
+    CloseCurrentTab,
+    CloseTab(usize),
+    CreateTab,
     GoBackward,
     GoForward,
     GoToUrl(Url),
@@ -140,17 +140,17 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         self.update_engine();
         let mut tasks = Vec::new();
         if let Some(on_url_change) = &self.on_url_change {
-            if let Some(current_view) = self.engine.get_views().get_current() {
-                if self.url != current_view.url() {
-                    self.url = current_view.url();
+            if let Some(current_tab) = self.engine.get_view().get_current() {
+                if self.url != current_tab.url() {
+                    self.url = current_tab.url();
                     tasks.push(Task::done(on_url_change(self.url.clone())))
                 }
             }
         }
         if let Some(on_title_change) = &self.on_title_change {
-            if let Some(current_view) = self.engine.get_views().get_current() {
-                if self.title != current_view.title() {
-                    self.title = current_view.title();
+            if let Some(current_tab) = self.engine.get_view().get_current() {
+                if self.title != current_tab.title() {
+                    self.title = current_tab.title();
                     tasks.push(Task::done(on_title_change(self.title.clone())))
                 }
             }
@@ -163,7 +163,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             Action::CloseCurrentView => {
                 let id = self
                     .engine
-                    .get_views()
+                    .get_view()
                     .get_current_id()
                     .expect("Unable to get current view id");
 
@@ -187,13 +187,13 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             Action::CreateView => {
                 let new_view = self.new_view.clone();
                 let bounds = self.view_size;
-                let view = self.engine.new_view(
-                    new_view.clone(),
+                let tab = self.engine.new_view(
+                    new_tab.clone(),
                     Size::new(bounds.width + 10, bounds.height - 10),
                 );
-                let id = self.engine.get_views_mut().insert(view);
-                self.engine.get_views_mut().set_current_id(id);
-                self.engine.force_need_render();
+                let id = self.engine.get_tabs_mut().insert(tab);
+                self.engine.get_tabs_mut().set_current_id(id);
+                self.engine.force_render();
                 self.engine.resize(bounds);
                 match new_view {
                     PageType::Url(url) => self
@@ -246,16 +246,15 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     }
 
     pub fn view(&self) -> Element<Action> {
-        if let Some(current_view) = self.engine.get_views().get_current() {
-            WebViewWidget::new(self.view_size, current_view.get_view()).into()
+        if let Some(current_tab) = self.engine.get_view().get_current() {
+            WebViewWidget::new(self.view_size, current_tab.get_view()).into()
         } else {
             WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
         }
     }
-
-    pub fn view_id(&self, id: usize) -> Element<Action> {
-        if let Some(current_view) = self.engine.get_views().get(id) {
-            WebViewWidget::new(self.view_size, current_view.get_view()).into()
+    pub fn view_id(&self, id: u32) -> Element<Action> {
+        if let Some(current_tab) = self.engine.get_view().get(id) {
+            WebViewWidget::new(self.view_size, current_tab.get_view()).into()
         } else {
             WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
         }
