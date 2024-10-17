@@ -34,10 +34,6 @@ pub trait Engine {
     fn goto_html(&self, html: &str);
     fn has_loaded(&self) -> Option<bool>;
 
-    fn new_view(&mut self, page_type: PageType, size: Size<u32>) -> usize;
-    fn get_views(&self) -> Vec<View>;
-    fn get_view(&self, id: usize) -> View;
-
     fn refresh(&self);
     fn go_forward(&self);
     fn go_back(&self);
@@ -55,7 +51,7 @@ pub struct View {
     url: String,
 }
 
-/// Allows users to create new tabs with url or custom html
+/// Allows users to create new views with url or custom html
 #[derive(Clone)]
 pub enum PageType {
     Url(&'static str),

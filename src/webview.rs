@@ -37,9 +37,9 @@ where
 {
     engine: Engine,
     view_size: Size<u32>,
-    new_tab: PageType,
-    on_close_tab: Option<Box<dyn Fn(usize) -> Message>>,
-    on_create_tab: Option<Box<dyn Fn(usize) -> Message>>,
+    new_view: PageType,
+    on_close_view: Option<Box<dyn Fn(usize) -> Message>>,
+    on_create_view: Option<Box<dyn Fn(usize) -> Message>>,
     on_url_change: Option<Box<dyn Fn(String) -> Message>>,
     url: String,
     on_title_change: Option<Box<dyn Fn(String) -> Message>>,
@@ -47,30 +47,30 @@ where
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    pub fn new(new_tab: PageType) -> (Self, Task<Action>) {
+    pub fn new(new_view: PageType) -> (Self, Task<Action>) {
         (
             WebView {
                 engine: Engine::default(),
                 view_size: Size::new(1920, 1080),
-                new_tab,
-                on_close_tab: None,
-                on_create_tab: None,
+                new_view,
+                on_close_view: None,
+                on_create_view: None,
                 on_url_change: None,
                 url: String::new(),
                 on_title_change: None,
                 title: String::new(),
             },
-            Task::done(Action::CreateTab),
+            Task::done(Action::CreateView),
         )
     }
 
-    pub fn on_create_tab(mut self, on_create_tab: impl Fn(usize) -> Message + 'static) -> Self {
-        self.on_create_tab = Some(Box::new(on_create_tab));
+    pub fn on_create_view(mut self, on_create_view: impl Fn(usize) -> Message + 'static) -> Self {
+        self.on_create_view = Some(Box::new(on_create_view));
         self
     }
 
-    pub fn on_close_tab(mut self, on_close_tab: impl Fn(usize) -> Message + 'static) -> Self {
-        self.on_close_tab = Some(Box::new(on_close_tab));
+    pub fn on_close_view(mut self, on_close_view: impl Fn(usize) -> Message + 'static) -> Self {
+        self.on_close_view = Some(Box::new(on_close_view));
         self
     }
 
@@ -100,9 +100,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                             self.view_size.height,
                         );
                         self.engine
-                            .get_tabs_mut()
+                            .get_views_mut()
                             .get_current_mut()
-                            .expect("Unable to get current tab id")
+                            .expect("Unable to get current view id")
                             .set_view(view)
                     }
                 }
@@ -113,9 +113,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                     ..Default::default()
                 };
                 self.engine
-                    .get_tabs_mut()
+                    .get_views_mut()
                     .get_current_mut()
-                    .expect("Unable to get current tab id")
+                    .expect("Unable to get current view id")
                     .set_view(view)
             }
         }
@@ -124,14 +124,14 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     fn force_update(&mut self) {
         self.engine.do_work();
         if let Some((format, image_data)) = self.engine.pixel_buffer() {
-            if let Some(current_tab) = self.engine.get_tabs_mut().get_current_mut() {
+            if let Some(current_view) = self.engine.get_views_mut().get_current_mut() {
                 let view = ImageInfo::new(
                     image_data,
                     format,
                     self.view_size.width,
                     self.view_size.height,
                 );
-                current_tab.set_view(view);
+                current_view.set_view(view);
             }
         }
     }
@@ -156,44 +156,36 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
         }
         tasks.push(match action {
-            Action::ChangeTab(index_type) => {
-                let id = match index_type {
-                    TabSelectionType::Id(id) => id,
-                    TabSelectionType::Index(index) => self.engine.get_view().index_to_id(index),
-                };
-                self.engine.get_tabs_mut().set_current_id(id);
+            Action::ChangeView(id) => {
+                self.engine.get_views_mut().set_current_id(id);
                 Task::none()
             }
-            Action::CloseCurrentTab => {
+            Action::CloseCurrentView => {
                 let id = self
                     .engine
                     .get_view()
                     .get_current_id()
-                    .expect("Unable to get current tab id");
+                    .expect("Unable to get current view id");
 
-                self.engine.get_tabs_mut().remove(id);
+                self.engine.get_views_mut().remove(id);
 
-                if let Some(on_tab_close) = &self.on_close_tab {
-                    Task::done((on_tab_close)(id as usize))
+                if let Some(on_view_close) = &self.on_close_view {
+                    Task::done((on_view_close)(id))
                 } else {
                     Task::none()
                 }
             }
-            Action::CloseTab(index_type) => {
-                let id = match index_type {
-                    TabSelectionType::Id(id) => id,
-                    TabSelectionType::Index(index) => self.engine.get_view().index_to_id(index),
-                };
-                self.engine.get_tabs_mut().remove(id);
+            Action::CloseView(id) => {
+                self.engine.get_views_mut().remove(id);
 
-                if let Some(on_tab_close) = &self.on_close_tab {
-                    Task::done((on_tab_close)(id as usize))
+                if let Some(on_view_close) = &self.on_close_view {
+                    Task::done((on_view_close)(id))
                 } else {
                     Task::none()
                 }
             }
-            Action::CreateTab => {
-                let new_tab = self.new_tab.clone();
+            Action::CreateView => {
+                let new_view = self.new_view.clone();
                 let bounds = self.view_size;
                 let tab = self.engine.new_view(
                     new_tab.clone(),
@@ -203,10 +195,10 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 self.engine.get_tabs_mut().set_current_id(id);
                 self.engine.force_render();
                 self.engine.resize(bounds);
-                match new_tab {
+                match new_view {
                     PageType::Url(url) => self
                         .engine
-                        .goto_url(&Url::parse(url).expect("Failed to parse new tab url")),
+                        .goto_url(&Url::parse(url).expect("Failed to parse new view url")),
                     PageType::Html(html) => self.engine.goto_html(html),
                 }
                 Task::none()
@@ -260,7 +252,6 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
         }
     }
-
     pub fn view_id(&self, id: u32) -> Element<Action> {
         if let Some(current_tab) = self.engine.get_view().get(id) {
             WebViewWidget::new(self.view_size, current_tab.get_view()).into()
