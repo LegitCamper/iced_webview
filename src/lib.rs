@@ -2,7 +2,7 @@ pub use html::root::Html;
 use iced::widget::image;
 
 pub mod engines;
-pub use engines::{DisplayTab, Engine, PageType, PixelFormat, Tab, TabInfo, Tabs};
+pub use engines::{Engine, PageType, PixelFormat, View};
 
 pub mod webview;
 pub use webview::WebView;
@@ -58,17 +58,5 @@ impl ImageInfo {
             self.height,
             self.pixels.clone(),
         ))
-    }
-}
-
-/// Allows different widgets to interact in their native way
-#[derive(Debug, Clone, PartialEq)]
-pub enum TabSelectionType {
-    Id(u32),
-    Index(usize),
-}
-impl Default for TabSelectionType {
-    fn default() -> Self {
-        TabSelectionType::Index(0)
     }
 }
