@@ -25,8 +25,8 @@ struct App {
     webview: WebView<Ultralight, Message>,
     show_webview: bool,
     webview_url: Option<String>,
-    num_tabs: u32,
-    current_tab: u32,
+    num_views: u32,
+    current_view: usize,
 }
 
 impl App {
@@ -39,8 +39,8 @@ impl App {
                 webview,
                 show_webview: false,
                 webview_url: None,
-                num_tabs: 1,
-                current_tab: 0,
+                num_views: 1,
+                current_view: 0,
             },
             task.map(Message::WebView),
         )
@@ -58,17 +58,17 @@ impl App {
                 Task::none()
             }
             Message::CreateWebview => {
-                self.num_tabs += 1;
-                self.webview.update(webview::Action::CreateTab)
+                self.num_views += 1;
+                self.webview.update(webview::Action::CreateView)
             }
             Message::SwitchWebview => {
-                if self.current_tab + 1 >= self.num_tabs {
-                    self.current_tab = 0;
+                if self.current_view + 1 >= self.num_views as usize {
+                    self.current_view = 0;
                 } else {
-                    self.current_tab += 1;
+                    self.current_view += 1;
                 };
-                let tab = iced_webview::TabSelectionType::Index(self.current_tab as usize);
-                self.webview.update(webview::Action::ChangeTab(tab))
+                self.webview
+                    .update(webview::Action::ChangeView(self.current_view))
             }
         }
     }
@@ -89,7 +89,7 @@ impl App {
         ]]
         .push_maybe(if self.show_webview {
             Some(column![
-                text(format!("view index: {}", self.current_tab)),
+                text(format!("view index: {}", self.current_view)),
                 self.webview.view().map(Message::WebView),
                 text(format!("Url: {:?}", self.webview_url)),
             ])

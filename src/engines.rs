@@ -17,7 +17,7 @@ pub enum PixelFormat {
 }
 
 pub trait Engine {
-    type Info: TabInfo;
+    type Info: ViewInfo;
 
     fn do_work(&self);
     fn need_render(&self) -> bool;
@@ -32,9 +32,9 @@ pub trait Engine {
     fn goto_url(&self, url: &Url);
     fn goto_html(&self, html: &str);
     fn has_loaded(&self) -> Option<bool>;
-    fn new_tab(&mut self, page_type: PageType, size: Size<u32>) -> Tab<Self::Info>;
-    fn get_tabs(&self) -> &Tabs<Self::Info>;
-    fn get_tabs_mut(&mut self) -> &mut Tabs<Self::Info>;
+    fn new_view(&mut self, page_type: PageType, size: Size<u32>) -> View<Self::Info>;
+    fn get_views(&self) -> &Views<Self::Info>;
+    fn get_views_mut(&mut self) -> &mut Views<Self::Info>;
 
     fn refresh(&self);
     fn go_forward(&self);
@@ -47,38 +47,38 @@ pub trait Engine {
     fn handle_mouse_event(&mut self, point: Point, event: mouse::Event);
 }
 
-/// Engine specific tab information
-pub trait TabInfo {
+/// Engine specific view information
+pub trait ViewInfo {
     fn url(&self) -> String;
     fn title(&self) -> String;
 }
 
-/// Can be converted from Tab to hold information for ResultType
+/// Can be converted from View to hold information for ResultType
 #[derive(Clone, Debug, PartialEq)]
-pub struct DisplayTab {
-    pub id: u32,
+pub struct DisplayView {
+    pub id: usize,
     pub url: String,
     pub title: String,
 }
 
-impl<Info: TabInfo> From<Tab<Info>> for DisplayTab {
-    fn from(tab: Tab<Info>) -> Self {
-        DisplayTab {
-            id: tab.id,
-            url: tab.url(),
-            title: tab.title(),
+impl<Info: ViewInfo> From<View<Info>> for DisplayView {
+    fn from(view: View<Info>) -> Self {
+        DisplayView {
+            id: view.id,
+            url: view.url(),
+            title: view.title(),
         }
     }
 }
 
-/// Stores Tab info like url & title
-pub struct Tab<Info: TabInfo> {
-    id: u32,
+/// Stores view info like url & title
+pub struct View<Info: ViewInfo> {
+    id: usize,
     view: ImageInfo,
     info: Info,
 }
 
-impl<Info: TabInfo> Tab<Info> {
+impl<Info: ViewInfo> View<Info> {
     pub fn new(info: Info) -> Self {
         let id = rand::thread_rng().gen();
         Self {
@@ -88,8 +88,8 @@ impl<Info: TabInfo> Tab<Info> {
         }
     }
 
-    pub fn to_display_tab(&self) -> DisplayTab {
-        DisplayTab {
+    pub fn to_display_view(&self) -> DisplayView {
+        DisplayView {
             id: self.id,
             url: self.url(),
             title: self.title(),
@@ -104,7 +104,7 @@ impl<Info: TabInfo> Tab<Info> {
         self.view = view;
     }
 
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> usize {
         self.id
     }
 
@@ -117,94 +117,97 @@ impl<Info: TabInfo> Tab<Info> {
     }
 }
 
-pub struct Tabs<Info: TabInfo> {
-    tabs: Vec<Tab<Info>>,
-    history: Vec<u32>,
+pub struct Views<Info: ViewInfo> {
+    views: Vec<View<Info>>,
+    history: Vec<usize>,
 }
 
-impl<Info: TabInfo> Default for Tabs<Info> {
+impl<Info: ViewInfo> Default for Views<Info> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<Info: TabInfo> Tabs<Info> {
+impl<Info: ViewInfo> Views<Info> {
     pub fn new() -> Self {
         Self {
-            tabs: Vec::new(),
+            views: Vec::new(),
             history: Vec::new(),
         }
     }
 
-    pub fn id_to_index(&self, id: u32) -> usize {
-        for (idx, tab) in self.tabs.iter().enumerate() {
-            if tab.id == id {
+    pub fn id_to_index(&self, id: usize) -> usize {
+        for (idx, view) in self.views.iter().enumerate() {
+            if view.id == id {
                 return idx;
             }
         }
         panic!("Id: {} was not found", id);
     }
 
-    pub fn index_to_id(&self, index: usize) -> u32 {
-        self.tabs
+    pub fn index_to_id(&self, index: usize) -> usize {
+        self.views
             .get(index)
             .unwrap_or_else(|| panic!("Index {} was not found", index))
             .id
     }
 
-    pub fn get_current_id(&self) -> Option<u32> {
+    pub fn get_current_id(&self) -> Option<usize> {
         Some(self.history.last()?.to_owned())
     }
 
-    pub fn set_current_id(&mut self, id: u32) {
+    pub fn set_current_id(&mut self, id: usize) {
         self.history.push(id)
     }
 
-    pub fn tabs(&self) -> &Vec<Tab<Info>> {
-        &self.tabs
+    pub fn views(&self) -> &Vec<View<Info>> {
+        &self.views
     }
 
-    pub fn display_tabs(&self) -> Vec<DisplayTab> {
-        self.tabs.iter().map(|tab| tab.to_display_tab()).collect()
+    pub fn display_views(&self) -> Vec<DisplayView> {
+        self.views
+            .iter()
+            .map(|view| view.to_display_view())
+            .collect()
     }
 
-    pub fn insert(&mut self, tab: Tab<Info>) -> u32 {
-        let id = tab.id;
-        self.tabs.push(tab);
+    pub fn insert(&mut self, view: View<Info>) -> usize {
+        let id = view.id;
+        self.views.push(view);
         id
     }
 
-    /// Returns the newly active tab
-    pub fn remove(&mut self, id: u32) -> Option<u32> {
-        self.history.retain(|tab_id| *tab_id != id);
+    /// Returns the newly active view
+    pub fn remove(&mut self, id: usize) -> Option<usize> {
+        self.history.retain(|view_id| *view_id != id);
 
-        self.tabs.retain(|tab| tab.id != id);
+        self.views.retain(|view| view.id != id);
         self.get_current_id()
     }
 
-    pub fn get_current(&self) -> Option<&Tab<Info>> {
+    pub fn get_current(&self) -> Option<&View<Info>> {
         self.get(self.get_current_id()?)
     }
 
-    pub fn get_current_mut(&mut self) -> Option<&mut Tab<Info>> {
+    pub fn get_current_mut(&mut self) -> Option<&mut View<Info>> {
         Some(self.get_mut(self.get_current_id()?))
     }
 
-    pub fn get(&self, id: u32) -> Option<&Tab<Info>> {
-        self.tabs.iter().find(|&tab| tab.id == id)
+    pub fn get(&self, id: usize) -> Option<&View<Info>> {
+        self.views.iter().find(|&view| view.id == id)
     }
 
-    pub fn get_mut(&mut self, id: u32) -> &mut Tab<Info> {
-        for tab in self.tabs.iter_mut() {
-            if tab.id == id {
-                return tab;
+    pub fn get_mut(&mut self, id: usize) -> &mut View<Info> {
+        for view in self.views.iter_mut() {
+            if view.id == id {
+                return view;
             }
         }
-        panic!("Unable to find Tab with id: {}", id);
+        panic!("Unable to find view with id: {}", id);
     }
 }
 
-/// Allows users to create new tabs with url or custom html
+/// Allows users to create new views with url or custom html
 #[derive(Clone)]
 pub enum PageType {
     Url(&'static str),
