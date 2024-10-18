@@ -1,5 +1,6 @@
 pub use html::root::Html;
 use iced::widget::image;
+pub use slotmap::DefaultKey as ViewId;
 
 pub mod engines;
 pub use engines::{Engine, PageType, PixelFormat, View};

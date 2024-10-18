@@ -2,7 +2,7 @@ use clipboard_rs::{Clipboard, ClipboardContext};
 use iced::keyboard::{self};
 use iced::mouse::{self, ScrollDelta};
 use iced::{Point, Size};
-use rand::Rng;
+use slotmap::{DefaultKey, SlotMap};
 use smol_str::SmolStr;
 use std::sync::{Arc, RwLock};
 use ul_next::{
@@ -36,9 +36,7 @@ impl platform::Clipboard for UlClipboard {
     }
 }
 
-type Views = Vec<View>;
 struct View {
-    id: usize,
     surface: Surface,
     view: view::View,
     cursor: Arc<RwLock<mouse::Interaction>>,
@@ -56,7 +54,7 @@ impl Into<super::View> for &View {
 pub struct Ultralight {
     renderer: Renderer,
     view_config: view::ViewConfig,
-    views: Views,
+    views: SlotMap<DefaultKey, View>,
 }
 
 impl Default for Ultralight {
@@ -79,7 +77,7 @@ impl Default for Ultralight {
         Self {
             renderer,
             view_config,
-            views: Views::new(),
+            views: SlotMap::new(),
         }
     }
 }
@@ -104,29 +102,43 @@ impl Engine for Ultralight {
         self.renderer.update()
     }
 
-    fn force_render(&self, id: usize) {
-        self.views[id].view.set_needs_paint(true)
+    fn force_render(&self, id: DefaultKey) {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .set_needs_paint(true)
     }
 
-    fn need_render(&self, id: usize) -> bool {
-        self.views[id].view.needs_paint()
+    fn need_render(&self, id: DefaultKey) -> bool {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .needs_paint()
     }
 
-    fn render(&mut self, _id: usize) {
+    fn render(&mut self, _id: DefaultKey) {
         self.renderer.render();
     }
 
     fn resize(&mut self, size: Size<u32>) {
-        self.views.iter().for_each(|view| {
+        self.views.iter().for_each(|(_, view)| {
             view.view.resize(size.width, size.height);
             view.surface.resize(size.width, size.height);
         })
     }
 
-    fn pixel_buffer(&mut self, id: usize) -> Option<(PixelFormat, Vec<u8>)> {
+    fn pixel_buffer(&mut self, id: DefaultKey) -> Option<(PixelFormat, Vec<u8>)> {
         self.render(id);
 
-        if let Some(pixel_data) = self.views[id].surface.lock_pixels() {
+        if let Some(pixel_data) = self
+            .views
+            .get_mut(id)
+            .expect("Tab does not exist")
+            .surface
+            .lock_pixels()
+        {
             let mut vec = Vec::new();
             vec.extend_from_slice(&pixel_data);
             Some((PixelFormat::Bgra, vec))
@@ -135,38 +147,61 @@ impl Engine for Ultralight {
         }
     }
 
-    fn get_cursor(&self, id: usize) -> mouse::Interaction {
-        *self.views[id].cursor.read().unwrap()
+    fn get_cursor(&self, id: DefaultKey) -> mouse::Interaction {
+        *self
+            .views
+            .get(id)
+            .expect("Tab does not exist")
+            .cursor
+            .read()
+            .unwrap()
     }
 
-    fn goto_html(&self, id: usize, html: &str) {
-        self.views[id].view.load_html(html).unwrap();
+    fn goto_html(&self, id: DefaultKey, html: &str) {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .load_html(html)
+            .unwrap();
     }
 
-    fn goto_url(&self, id: usize, url: &Url) {
-        self.views[id].view.load_url(url.as_ref()).unwrap();
+    fn goto_url(&self, id: DefaultKey, url: &Url) {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .load_url(url.as_ref())
+            .unwrap();
     }
 
-    fn has_loaded(&self, id: usize) -> Option<bool> {
-        Some(!self.views[id].view.is_loading())
+    fn has_loaded(&self, id: DefaultKey) -> Option<bool> {
+        Some(
+            !self
+                .views
+                .get(id)
+                .expect("Tab does not exist")
+                .view
+                .is_loading(),
+        )
     }
 
     fn get_views(&self) -> Vec<super::View> {
         self.views
             .iter()
-            .map(|view| Into::<super::View>::into(view))
+            .map(|(_, view)| Into::<super::View>::into(view))
             .collect()
     }
 
-    fn remove_view(&mut self, id: usize) {
-        self.views.retain(|view| view.id != id)
+    fn remove_view(&mut self, id: DefaultKey) {
+        self.views.remove(id).expect("Failed to remove view");
     }
 
-    fn get_view(&self, id: usize) -> super::View {
-        Into::<super::View>::into(&self.views[id])
+    fn get_view(&self, id: DefaultKey) -> super::View {
+        Into::<super::View>::into(self.views.get(id).expect("Tab does not exist"))
     }
 
-    fn new_view(&mut self, page_type: PageType, size: Size<u32>) -> usize {
+    fn new_view(&mut self, page_type: PageType, size: Size<u32>) -> DefaultKey {
         let view = self
             .renderer
             .create_view(size.width, size.height, &self.view_config, None)
@@ -203,39 +238,50 @@ impl Engine for Ultralight {
             };
         });
 
-        let id = rand::thread_rng().gen();
-        let view = View {
-            id,
+        self.views.insert(View {
             surface,
             view,
             cursor,
-        };
-
-        self.views.push(view);
-        id
+        })
     }
 
-    fn refresh(&self, id: usize) {
-        self.views[id].view.reload();
+    fn refresh(&self, id: DefaultKey) {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .reload();
     }
 
-    fn go_forward(&self, id: usize) {
-        self.views[id].view.go_forward();
+    fn go_forward(&self, id: DefaultKey) {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .go_forward();
     }
 
-    fn go_back(&self, id: usize) {
-        self.views[id].view.go_back();
+    fn go_back(&self, id: DefaultKey) {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .go_back();
     }
 
-    fn focus(&self, id: usize) {
-        self.views[id].view.focus();
+    fn focus(&self, id: DefaultKey) {
+        self.views.get(id).expect("Tab does not exist").view.focus();
     }
 
-    fn unfocus(&self, id: usize) {
-        self.views[id].view.unfocus();
+    fn unfocus(&self, id: DefaultKey) {
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .unfocus();
     }
 
-    fn scroll(&self, id: usize, delta: ScrollDelta) {
+    fn scroll(&self, id: DefaultKey, delta: ScrollDelta) {
         let scroll_event = match delta {
             ScrollDelta::Lines { x, y } => ScrollEvent::new(
                 ul_next::event::ScrollEventType::ScrollByPixel,
@@ -250,10 +296,14 @@ impl Engine for Ultralight {
             )
             .unwrap(),
         };
-        self.views[id].view.fire_scroll_event(scroll_event);
+        self.views
+            .get(id)
+            .expect("Tab does not exist")
+            .view
+            .fire_scroll_event(scroll_event);
     }
 
-    fn handle_keyboard_event(&self, id: usize, event: keyboard::Event) {
+    fn handle_keyboard_event(&self, id: DefaultKey, event: keyboard::Event) {
         let key_event = match event {
             keyboard::Event::KeyPressed {
                 key,
@@ -288,11 +338,15 @@ impl Engine for Ultralight {
         };
 
         if let Some(key_event) = key_event {
-            self.views[id].view.fire_key_event(key_event);
+            self.views
+                .get(id)
+                .expect("Tab does not exist")
+                .view
+                .fire_key_event(key_event);
         }
     }
 
-    fn handle_mouse_event(&mut self, id: usize, point: Point, event: mouse::Event) {
+    fn handle_mouse_event(&mut self, id: DefaultKey, point: Point, event: mouse::Event) {
         match event {
             mouse::Event::ButtonReleased(mouse::Button::Forward) => {
                 self.go_forward(id);
@@ -301,59 +355,79 @@ impl Engine for Ultralight {
                 self.go_back(id);
             }
             mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                self.views[id].view.fire_mouse_event(
-                    MouseEvent::new(
-                        ul_next::event::MouseEventType::MouseDown,
-                        point.x as i32,
-                        point.y as i32,
-                        ul_next::event::MouseButton::Left,
-                    )
-                    .unwrap(),
-                );
+                self.views
+                    .get(id)
+                    .expect("Tab does not exist")
+                    .view
+                    .fire_mouse_event(
+                        MouseEvent::new(
+                            ul_next::event::MouseEventType::MouseDown,
+                            point.x as i32,
+                            point.y as i32,
+                            ul_next::event::MouseButton::Left,
+                        )
+                        .unwrap(),
+                    );
             }
             mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                self.views[id].view.fire_mouse_event(
-                    MouseEvent::new(
-                        ul_next::event::MouseEventType::MouseUp,
-                        point.x as i32,
-                        point.y as i32,
-                        ul_next::event::MouseButton::Left,
-                    )
-                    .unwrap(),
-                );
+                self.views
+                    .get(id)
+                    .expect("Tab does not exist")
+                    .view
+                    .fire_mouse_event(
+                        MouseEvent::new(
+                            ul_next::event::MouseEventType::MouseUp,
+                            point.x as i32,
+                            point.y as i32,
+                            ul_next::event::MouseButton::Left,
+                        )
+                        .unwrap(),
+                    );
             }
             mouse::Event::ButtonPressed(mouse::Button::Right) => {
-                self.views[id].view.fire_mouse_event(
-                    MouseEvent::new(
-                        ul_next::event::MouseEventType::MouseDown,
-                        point.x as i32,
-                        point.y as i32,
-                        ul_next::event::MouseButton::Right,
-                    )
-                    .unwrap(),
-                );
+                self.views
+                    .get(id)
+                    .expect("Tab does not exist")
+                    .view
+                    .fire_mouse_event(
+                        MouseEvent::new(
+                            ul_next::event::MouseEventType::MouseDown,
+                            point.x as i32,
+                            point.y as i32,
+                            ul_next::event::MouseButton::Right,
+                        )
+                        .unwrap(),
+                    );
             }
             mouse::Event::ButtonReleased(mouse::Button::Right) => {
-                self.views[id].view.fire_mouse_event(
-                    MouseEvent::new(
-                        ul_next::event::MouseEventType::MouseUp,
-                        point.x as i32,
-                        point.y as i32,
-                        ul_next::event::MouseButton::Right,
-                    )
-                    .unwrap(),
-                );
+                self.views
+                    .get(id)
+                    .expect("Tab does not exist")
+                    .view
+                    .fire_mouse_event(
+                        MouseEvent::new(
+                            ul_next::event::MouseEventType::MouseUp,
+                            point.x as i32,
+                            point.y as i32,
+                            ul_next::event::MouseButton::Right,
+                        )
+                        .unwrap(),
+                    );
             }
             mouse::Event::CursorMoved { position: _ } => {
-                self.views[id].view.fire_mouse_event(
-                    MouseEvent::new(
-                        ul_next::event::MouseEventType::MouseMoved,
-                        point.x as i32,
-                        point.y as i32,
-                        ul_next::event::MouseButton::None,
-                    )
-                    .unwrap(),
-                );
+                self.views
+                    .get(id)
+                    .expect("Tab does not exist")
+                    .view
+                    .fire_mouse_event(
+                        MouseEvent::new(
+                            ul_next::event::MouseEventType::MouseMoved,
+                            point.x as i32,
+                            point.y as i32,
+                            ul_next::event::MouseButton::None,
+                        )
+                        .unwrap(),
+                    );
             }
             mouse::Event::WheelScrolled { delta } => self.scroll(id, delta),
             mouse::Event::CursorLeft => {

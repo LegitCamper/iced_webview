@@ -12,9 +12,9 @@ opt-level = "s"
 lto = "thin"
 
 [features]
-default = ["ultralight"]
-# default = ["gosub"]
-ultralight = ["dep:ul-next"]
+# default = ["ultralight"]
+default = ["gosub"]
+ultralight = ["dep:ul-next", "dep:smol_str", "dep:clipboard-rs"]
 # automatically downloads ultralight resources
 ultralight-resources = []
 gosub = [
@@ -29,8 +29,18 @@ gosub = [
 ]
 
 [dependencies]
-# engine dpes
+iced = { version = "0.13", features = ["advanced", "image", "tokio", "lazy"] }
+slotmap = "1.0.7"
+url = "2.5.2"
+html = "0.6.3"
+rand = "0.8.5"
+
+# ultralight deps
 ul-next = { version = "0.4", optional = true }
+smol_str = { version = "0.2.2", optional = true }
+clipboard-rs = { version = "0.2.1", optional = true }
+
+# gosub deps
 gosub_shared = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_useragent = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_renderer = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
@@ -39,10 +49,3 @@ gosub_vello = { git = "https://github.com/gosub-io/gosub-engine", optional = tru
 gosub_taffy = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_css3 = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_html5 = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
-
-clipboard-rs = "0.2.1"
-iced = { version = "0.13", features = ["advanced", "image", "tokio", "lazy"] }
-rand = "0.8.5"
-smol_str = "0.2.2"
-url = "2.5.2"
-html = "0.6.3"

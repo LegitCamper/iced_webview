@@ -2486,6 +2486,7 @@ dependencies = [
  "html",
  "iced",
  "rand 0.8.5",
+ "slotmap",
  "smol_str",
  "ul-next",
  "url",

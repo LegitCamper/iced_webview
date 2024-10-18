@@ -3,7 +3,7 @@ use iced::{
     widget::{button, column, container, row, text},
     Element, Length, Subscription, Task,
 };
-use iced_webview::{webview, PageType, Ultralight, WebView};
+use iced_webview::{webview, PageType, Ultralight, ViewId, WebView};
 use std::time::Duration;
 
 fn main() -> iced::Result {
@@ -16,7 +16,8 @@ fn main() -> iced::Result {
 enum Message {
     WebView(webview::Action),
     ToggleWebviewVisibility,
-    UpdateWebviewTitle(String),
+    UpdateWebviewUrl(String),
+    CreatedNewView(ViewId),
     CreateWebview,
     SwitchWebview,
 }
@@ -25,6 +26,7 @@ struct App {
     webview: WebView<Ultralight, Message>,
     show_webview: bool,
     webview_url: Option<String>,
+    view_ids: Vec<ViewId>,
     num_views: u32,
     current_view: usize,
 }
@@ -33,12 +35,15 @@ impl App {
     fn new() -> (Self, Task<Message>) {
         let page = PageType::Url("https://docs.rs/iced/latest/iced/index.html");
         let (mut webview, task) = WebView::new(page);
-        webview = webview.on_url_change(Message::UpdateWebviewTitle);
+        webview = webview
+            .on_create_view(Message::CreatedNewView)
+            .on_url_change(Message::UpdateWebviewUrl);
         (
             Self {
                 webview,
                 show_webview: false,
                 webview_url: None,
+                view_ids: Vec::new(),
                 num_views: 1,
                 current_view: 0,
             },
@@ -53,8 +58,8 @@ impl App {
                 self.show_webview = !self.show_webview;
                 Task::none()
             }
-            Message::UpdateWebviewTitle(new_title) => {
-                self.webview_url = Some(new_title);
+            Message::UpdateWebviewUrl(new_url) => {
+                self.webview_url = Some(new_url);
                 Task::none()
             }
             Message::CreateWebview => {
@@ -67,8 +72,13 @@ impl App {
                 } else {
                     self.current_view += 1;
                 };
-                self.webview
-                    .update(webview::Action::ChangeView(self.current_view))
+                self.webview.update(webview::Action::ChangeView(
+                    self.view_ids[self.current_view],
+                ))
+            }
+            Message::CreatedNewView(id) => {
+                self.view_ids.push(id);
+                Task::none()
             }
         }
     }
