@@ -45,8 +45,8 @@ pub trait Engine {
     fn focus(&self, id: DefaultKey);
     fn unfocus(&self, id: DefaultKey);
 
-    fn scroll(&self, id: DefaultKey, delta: mouse::ScrollDelta);
-    fn handle_keyboard_event(&self, id: DefaultKey, event: keyboard::Event);
+    fn scroll(&mut self, id: DefaultKey, delta: mouse::ScrollDelta);
+    fn handle_keyboard_event(&mut self, id: DefaultKey, event: keyboard::Event);
     fn handle_mouse_event(&mut self, id: DefaultKey, point: Point, event: mouse::Event);
 }
 

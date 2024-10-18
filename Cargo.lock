@@ -2477,6 +2477,7 @@ dependencies = [
  "clipboard-rs",
  "gosub_css3",
  "gosub_html5",
+ "gosub_render_backend",
  "gosub_renderer",
  "gosub_rendering",
  "gosub_shared",

@@ -83,13 +83,13 @@ impl Default for Ultralight {
 }
 
 impl Ultralight {
-    pub fn new(font: &str, scale: f64, accelerated: bool) -> Self {
+    pub fn new(font: &str, scale: f64) -> Self {
         accelerated.then(|| panic!("Ultralight acceleration is currently unsupported"));
         Self {
             view_config: view::ViewConfig::start()
                 .initial_device_scale(scale)
                 .font_family_standard(font)
-                .is_accelerated(accelerated)
+                .is_accelerated(false)
                 .build()
                 .unwrap(),
             ..Default::default()

@@ -21,6 +21,7 @@ gosub = [
   "dep:gosub_shared",
   "dep:gosub_useragent",
   "dep:gosub_renderer",
+  "dep:gosub_render_backend",
   "dep:gosub_rendering",
   "dep:gosub_vello",
   "dep:gosub_taffy",
@@ -44,6 +45,7 @@ clipboard-rs = { version = "0.2.1", optional = true }
 gosub_shared = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_useragent = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_renderer = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
+gosub_render_backend = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_rendering = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_vello = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
 gosub_taffy = { git = "https://github.com/gosub-io/gosub-engine", optional = true }
