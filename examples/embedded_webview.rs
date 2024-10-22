@@ -3,7 +3,7 @@ use iced::{
     widget::{button, column, container, row, text},
     Element, Length, Subscription, Task,
 };
-use iced_webview::{webview, PageType, Ultralight, ViewId, WebView};
+use iced_webview::{webview, PageType, Ultralight, WebView};
 use std::time::Duration;
 
 fn main() -> iced::Result {
@@ -26,7 +26,6 @@ struct App {
     webview: WebView<Ultralight, Message>,
     show_webview: bool,
     webview_url: Option<String>,
-    view_ids: Vec<ViewId>,
     num_views: u32,
     current_view: usize,
 }
@@ -43,7 +42,6 @@ impl App {
                 webview,
                 show_webview: false,
                 webview_url: None,
-                view_ids: Vec::new(),
                 num_views: 1,
                 current_view: 0,
             },
@@ -72,9 +70,8 @@ impl App {
                 } else {
                     self.current_view += 1;
                 };
-                self.webview.update(webview::Action::ChangeView(
-                    self.view_ids[self.current_view],
-                ))
+                self.webview
+                    .update(webview::Action::ChangeView(self.current_view))
             }
             Message::CreatedNewView(id) => {
                 self.view_ids.push(id);

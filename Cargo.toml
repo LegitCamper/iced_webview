@@ -14,7 +14,7 @@ lto = "thin"
 [features]
 # default = ["ultralight"]
 default = ["gosub"]
-ultralight = ["dep:ul-next", "dep:smol_str", "dep:clipboard-rs"]
+ultralight = ["dep:ul-next", "dep:smol_str", "dep:clipboard-rs", "dep:slotmap"]
 # automatically downloads ultralight resources
 ultralight-resources = []
 gosub = [
@@ -27,14 +27,16 @@ gosub = [
   "dep:gosub_taffy",
   "dep:gosub_css3",
   "dep:gosub_html5",
+  "dep:slotmap",
 ]
 
 [dependencies]
+futures = "0.3"
 iced = { version = "0.13", features = ["advanced", "image", "tokio", "lazy"] }
-slotmap = "1.0.7"
 url = "2.5.2"
 html = "0.6.3"
 rand = "0.8.5"
+slotmap = { version = "1.0.7", optional = true }
 
 # ultralight deps
 ul-next = { version = "0.4", optional = true }

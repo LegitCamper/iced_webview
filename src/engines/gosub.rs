@@ -1,3 +1,4 @@
+use futures::executor::block_on;
 use gosub_css3::system::Css3System;
 use gosub_html5::document::document_impl::DocumentImpl;
 use gosub_html5::parser::Html5Parser;
@@ -5,12 +6,16 @@ use gosub_render_backend::{Point, SizeU32, FP};
 use gosub_renderer::draw::SceneDrawer;
 use gosub_renderer::render_tree::TreeDrawer;
 use gosub_rendering::render_tree::RenderTree;
-use gosub_shared::types::Result;
+use gosub_shared::types::{Result, Size};
 use gosub_taffy::TaffyLayouter;
 use gosub_useragent::application::{Application, CustomEventInternal, WindowOptions};
 use gosub_useragent::tabs::{self, Tab};
 use gosub_vello::VelloBackend;
+use slotmap::DefaultKey;
+use std::collections::HashMap;
 use url::Url;
+
+use crate::ImageInfo;
 
 use super::{Engine, PageType, PixelFormat, View};
 
@@ -23,17 +28,25 @@ type Drawer = TreeDrawer<Backend, Layouter, Document, CssSystem>;
 type Tree = RenderTree<Layouter, CssSystem>;
 
 pub struct GoSub {
+    debug: bool,
+    id_to_slot: HashMap<usize, DefaultKey>,
     layouter: Layouter,
     tabs: tabs::Tabs<Drawer, Backend, Layouter, Tree, Document, CssSystem>,
     backend: VelloBackend,
+    view_cache: Vec<ImageInfo>,
+    size: Size<u32>,
 }
 
 impl GoSub {
-    pub fn new() -> Self {
+    pub fn new(debug: bool) -> Self {
         Self {
+            debug,
+            id_to_slot: HashMap::new(),
             layouter: TaffyLayouter,
             backend: VelloBackend {},
             tabs: tabs::Tabs::default(),
+            view_cache: Vec::new(),
+            size: Size::new(1920, 1080),
         }
     }
 }
@@ -43,85 +56,143 @@ impl Engine for GoSub {
         todo!()
     }
 
-    fn need_render(&self, id: slotmap::DefaultKey) -> bool {
-        todo!()
+    fn need_render(&self, id: usize) -> bool {
+        false
     }
 
-    fn force_render(&self, id: slotmap::DefaultKey) {}
+    fn force_render(&mut self, id: usize) {
+        let key = self.id_to_slot.get(&id).expect("Failed to get slot id");
+        self.tabs
+            .tabs
+            .get_mut(*key)
+            .unwrap()
+            .data
+            .set_needs_redraw();
+    }
 
-    fn render(&mut self, id: slotmap::DefaultKey) {
-        todo!()
+    fn render(&mut self, id: usize) {
+        let key = self.id_to_slot.get(&id).expect("Failed to get slot id");
+        self.tabs
+            .tabs
+            .get_mut(*key)
+            .unwrap()
+            .data
+            .set_needs_redraw();
     }
 
     fn resize(&mut self, size: iced::Size<u32>) {
         todo!()
     }
 
-    fn pixel_buffer(&mut self, id: slotmap::DefaultKey) -> Option<(PixelFormat, Vec<u8>)> {
+    fn pixel_buffer(&mut self, id: usize) -> Option<(PixelFormat, Vec<u8>)> {
+        let key = self.id_to_slot.get(&id).expect("Failed to get key with id");
+        let pos = self
+            .tabs
+            .tabs
+            .iter()
+            .position(|tab| tab.0 == *key)
+            .expect("Failed to get tab pos");
+        Some(self.view_cache.get(pos).unwrap())
+    }
+
+    fn get_cursor(&self, id: usize) -> iced::mouse::Interaction {
         todo!()
     }
 
-    fn get_cursor(&self, id: slotmap::DefaultKey) -> iced::mouse::Interaction {
+    fn goto_url(&self, id: usize, url: &Url) {
         todo!()
     }
 
-    fn goto_url(&self, id: slotmap::DefaultKey, url: &Url) {
+    fn goto_html(&self, id: usize, html: &str) {
         todo!()
     }
 
-    fn goto_html(&self, id: slotmap::DefaultKey, html: &str) {
+    fn has_loaded(&self, id: usize) -> Option<bool> {
         todo!()
     }
 
-    fn has_loaded(&self, id: slotmap::DefaultKey) -> Option<bool> {
+    fn new_view(&mut self, page_type: PageType, size: iced::Size<u32>) -> usize {
+        // if let PageType::Url(url) = page_type {
+        //     let tab = block_on(
+        //         Tab::from_url::<Html5Parser<CssSystem, Document<CssSystem>>>(
+        //             Url::parse(url).expect("Failed to parse string as url"),
+        //             self.layouter,
+        //             true,
+        //         ),
+        //     )
+        //     .expect("Failed to create new tab");
+        //     let key = self.tabs.tabs.insert(tab);
+        //     let id = rand::thread_rng().gen();
+        //     self.id_to_slot.insert(id, key);
+        //     return id;
+        // } else {
+        //     unimplemented!()
+        // }
         todo!()
     }
 
-    fn new_view(&mut self, page_type: PageType, size: iced::Size<u32>) -> slotmap::DefaultKey {
-        if let PageType::Url(url) = page_type {
-            self.tabs.tabs.insert(Tab::from_url(
-                Url::parse(url).unwrap(),
-                self.layouter,
-                false,
-            ))
-        } else {
-            unimplemented!()
-        }
-    }
-
-    fn remove_view(&mut self, id: slotmap::DefaultKey) {
-        todo!()
+    fn remove_view(&mut self, id: usize) {
+        let key = self
+            .id_to_slot
+            .remove(&id)
+            .expect("Failed to retreive tab id");
+        self.tabs.tabs.remove(key).expect("Failed to remove tab");
     }
 
     fn get_views(&self) -> Vec<View> {
-        todo!()
+        self.tabs
+            .tabs
+            .iter()
+            .zip(self.view_cache.iter())
+            .map(|(tab, image)| super::View {
+                title: tab.1.title.clone(),
+                url: tab.1.url.to_string(),
+                view: image.clone(),
+            })
+            .collect()
     }
 
-    fn get_view(&self, id: slotmap::DefaultKey) -> View {
-        todo!()
+    fn get_view(&self, id: usize) -> View {
+        let key = self.id_to_slot.get(&id).expect("Failed to get slot id");
+        for ((_, tab), image) in self
+            .tabs
+            .tabs
+            .iter()
+            .zip(self.view_cache.iter())
+            .filter(|((iter_key, _), _)| iter_key == key)
+        {
+            return super::View {
+                title: tab.title.clone(),
+                url: tab.url.to_string(),
+                view: image.clone(),
+            };
+        }
+        panic!("Could not get view")
     }
 
-    fn refresh(&self, id: slotmap::DefaultKey) {
-        todo!()
+    fn refresh(&self, id: usize) {
+        // let key = self.id_to_slot.get(&id).expect("Failed to get slot id");
+        // self.tabs.tabs.get(*key).unwrap();
+        unimplemented!() // not implemented in gosub yet
     }
 
-    fn go_forward(&self, id: slotmap::DefaultKey) {
-        todo!()
+    fn go_forward(&self, id: usize) {
+        unimplemented!() // not implemented in gosub yet
     }
 
-    fn go_back(&self, id: slotmap::DefaultKey) {
-        todo!()
+    fn go_back(&self, id: usize) {
+        unimplemented!() // not implemented in gosub yet
     }
 
-    fn focus(&self, id: slotmap::DefaultKey) {
-        todo!()
+    fn focus(&self, id: usize) {
+        unimplemented!() // not implemented in gosub yet
     }
 
-    fn unfocus(&self, id: slotmap::DefaultKey) {
-        todo!()
+    fn unfocus(&self, id: usize) {
+        unimplemented!() // not implemented in gosub yet
     }
 
-    fn scroll(&mut self, id: slotmap::DefaultKey, delta: iced::mouse::ScrollDelta) {
+    fn scroll(&mut self, id: usize, delta: iced::mouse::ScrollDelta) {
         let Some(tab) = self.tabs.get_current_tab() else {
             return;
         };
@@ -136,8 +207,9 @@ impl Engine for GoSub {
         tab.data.scroll(delta);
     }
 
-    fn handle_keyboard_event(&mut self, id: slotmap::DefaultKey, event: iced::keyboard::Event) {
-        let Some(tab) = self.tabs.tabs.get_mut(id) else {
+    fn handle_keyboard_event(&mut self, id: usize, event: iced::keyboard::Event) {
+        let key = self.id_to_slot.get(&id).expect("Failed to get slot id");
+        let Some(tab) = self.tabs.tabs.get_mut(*key) else {
             return;
         };
 
@@ -165,13 +237,9 @@ impl Engine for GoSub {
         }
     }
 
-    fn handle_mouse_event(
-        &mut self,
-        id: slotmap::DefaultKey,
-        point: iced::Point,
-        _event: iced::mouse::Event,
-    ) {
-        let Some(tab) = self.tabs.tabs.get_mut(id) else {
+    fn handle_mouse_event(&mut self, id: usize, point: iced::Point, _event: iced::mouse::Event) {
+        let key = self.id_to_slot.get(&id).expect("Failed to get slot id");
+        let Some(tab) = self.tabs.tabs.get_mut(*key) else {
             return;
         };
 
