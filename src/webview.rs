@@ -13,7 +13,7 @@ use iced::{mouse, Element, Point, Size, Task};
 use iced::{theme::Theme, Event, Length, Rectangle};
 use url::Url;
 
-use crate::{engines, ImageInfo, PageType};
+use crate::{engines, ImageInfo, PageType, ViewId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
@@ -31,13 +31,22 @@ pub enum Action {
     Resize(Size<u32>),
 }
 
+/// Controls the operation of WebView
+pub enum WebViewMode {
+    /// For most users & situations you only need to display a single view at a time
+    SingleView,
+    /// For When you need to display more than one view at a time - like browser tab tiling
+    MultiView,
+}
+
 pub struct WebView<Engine, Message>
 where
     Engine: engines::Engine,
 {
     engine: Engine,
+    mode: WebViewMode,
+    current_view: ViewId, // only used in single view mode
     view_size: Size<u32>,
-    new_view: PageType,
     on_close_view: Option<Box<dyn Fn(usize) -> Message>>,
     on_create_view: Option<Box<dyn Fn(usize) -> Message>>,
     on_url_change: Option<Box<dyn Fn(String) -> Message>>,
@@ -47,12 +56,13 @@ where
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    pub fn new(new_view: PageType) -> (Self, Task<Action>) {
+    pub fn new(mode: WebViewMode) -> (Self, Task<Action>) {
         (
             WebView {
                 engine: Engine::default(),
+                mode,
+                current_view: 0,
                 view_size: Size::new(1920, 1080),
-                new_view,
                 on_close_view: None,
                 on_create_view: None,
                 on_url_change: None,
@@ -87,57 +97,8 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         self
     }
 
-    fn update_engine(&mut self) {
-        self.engine.do_work();
-        if let Some(has_loaded) = self.engine.has_loaded() {
-            if has_loaded {
-                if self.engine.need_render() {
-                    if let Some((format, image_data)) = self.engine.pixel_buffer() {
-                        let view = ImageInfo::new(
-                            image_data,
-                            format,
-                            self.view_size.width,
-                            self.view_size.height,
-                        );
-                        self.engine
-                            .get_views_mut()
-                            .get_current_mut()
-                            .expect("Unable to get current view id")
-                            .set_view(view)
-                    }
-                }
-            } else {
-                let view = ImageInfo {
-                    width: self.view_size.width,
-                    height: self.view_size.height,
-                    ..Default::default()
-                };
-                self.engine
-                    .get_views_mut()
-                    .get_current_mut()
-                    .expect("Unable to get current view id")
-                    .set_view(view)
-            }
-        }
-    }
-
-    fn force_update(&mut self) {
-        self.engine.do_work();
-        if let Some((format, image_data)) = self.engine.pixel_buffer() {
-            if let Some(current_view) = self.engine.get_views_mut().get_current_mut() {
-                let view = ImageInfo::new(
-                    image_data,
-                    format,
-                    self.view_size.width,
-                    self.view_size.height,
-                );
-                current_view.set_view(view);
-            }
-        }
-    }
-
+    /// Update updates all views
     pub fn update(&mut self, action: Action) -> Task<Message> {
-        self.update_engine();
         let mut tasks = Vec::new();
         if let Some(on_url_change) = &self.on_url_change {
             if let Some(current_view) = self.engine.get_views().get_current() {
@@ -193,7 +154,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 );
                 let id = self.engine.get_views_mut().insert(view);
                 self.engine.get_views_mut().set_current_id(id);
-                self.engine.force_need_render();
+                self.engine.force_update();
                 self.engine.resize(bounds);
                 match new_view {
                     PageType::Url(url) => self
@@ -245,20 +206,16 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         }
     }
 
-    pub fn view(&self) -> Element<Action> {
-        if let Some(current_view) = self.engine.get_views().get_current() {
-            WebViewWidget::new(self.view_size, current_view.get_view()).into()
-        } else {
-            WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
-        }
+    /// Like a normal `view()` method in iced, but takes an id
+    /// Can only be used in single view mode
+    pub fn view(&self, id: usize) -> Element<Action> {
+        WebViewWidget::new(self.view_size, self.engine.get_view(id)).into()
     }
 
+    /// Like a normal `view()` method in iced, but takes an id
+    /// Can only be used in multi view mode
     pub fn view_id(&self, id: usize) -> Element<Action> {
-        if let Some(current_view) = self.engine.get_views().get(id) {
-            WebViewWidget::new(self.view_size, current_view.get_view()).into()
-        } else {
-            WebViewWidget::new(self.view_size, &ImageInfo::default()).into()
-        }
+        WebViewWidget::new(self.view_size, self.engine.get_view(id)).into()
     }
 }
 
