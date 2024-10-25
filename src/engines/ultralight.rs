@@ -2,6 +2,7 @@ use clipboard_rs::{Clipboard, ClipboardContext};
 use iced::keyboard::{self};
 use iced::mouse::{self, ScrollDelta};
 use iced::{Point, Size};
+use rand::Rng;
 use smol_str::SmolStr;
 use std::sync::{Arc, RwLock};
 use ul_next::{
@@ -14,9 +15,10 @@ use ul_next::{
     window::Cursor,
     Surface,
 };
-use url::Url;
 
-use super::{Engine, PageType, PixelFormat, View, ViewInfo, Views};
+use crate::ImageInfo;
+
+use super::{Engine, PageType, PixelFormat, ViewId};
 
 struct UlClipboard {
     ctx: ClipboardContext,
@@ -35,26 +37,20 @@ impl platform::Clipboard for UlClipboard {
     }
 }
 
-pub struct UltalightViewInfo {
+/// Holds Ultralight View info like surfaces for rendering and urls & titles
+pub struct View {
+    id: ViewId,
     surface: Surface,
     view: view::View,
     cursor: Arc<RwLock<mouse::Interaction>>,
+    last_frame: ImageInfo,
 }
 
-impl ViewInfo for UltalightViewInfo {
-    fn title(&self) -> String {
-        self.view.title().unwrap_or("Title Error".to_string())
-    }
-
-    fn url(&self) -> String {
-        self.view.url().expect("Failed to get url from ultralight")
-    }
-}
-
+/// Implementation of the Ultralight browsing engine for iced_webivew
 pub struct Ultralight {
     renderer: Renderer,
     view_config: view::ViewConfig,
-    views: Views<UltalightViewInfo>,
+    views: Vec<View>,
 }
 
 impl Default for Ultralight {
@@ -77,139 +73,79 @@ impl Default for Ultralight {
         Self {
             renderer,
             view_config,
-            views: Views::new(),
+            views: Vec::new(),
         }
     }
 }
 
 impl Ultralight {
-    pub fn new(font: &str, scale: f64, accelerated: bool) -> Self {
-        accelerated.then(|| panic!("Ultralight acceleration is currently unsupported"));
+    /// Creates a new Ultralight adapter
+    pub fn new(font: &str, scale: f64) -> Self {
         Self {
             view_config: view::ViewConfig::start()
                 .initial_device_scale(scale)
                 .font_family_standard(font)
-                .is_accelerated(accelerated)
+                // iced_webview does not currently support acceleration
+                .is_accelerated(false)
                 .build()
                 .unwrap(),
             ..Default::default()
         }
     }
+
+    fn get_view(&self, id: ViewId) -> &View {
+        for view in self.views.iter() {
+            if view.id == id {
+                return &view;
+            }
+        }
+        panic!("Could not find id: {}", id);
+    }
+    fn get_view_mut(&mut self, id: ViewId) -> &mut View {
+        for view in self.views.iter_mut() {
+            if view.id == id {
+                return view;
+            }
+        }
+        panic!("Could not find id: {}", id);
+    }
 }
 
 impl Engine for Ultralight {
-    type Info = UltalightViewInfo;
-
-    fn do_work(&self) {
-        self.renderer.update()
+    fn update(&mut self) {
+        self.renderer.update();
     }
 
-    fn force_need_render(&self) {
-        self.get_views()
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .set_needs_paint(true)
-    }
-
-    fn need_render(&self) -> bool {
-        self.get_views()
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .needs_paint()
-    }
-
-    fn render(&mut self) {
+    fn render(&mut self, size: Size<u32>) {
         self.renderer.render();
-    }
 
-    fn size(&self) -> Option<(u32, u32)> {
-        let view = &self.views.get_current()?.info.view;
-        Some((view.width(), view.height()))
-    }
-
-    fn resize(&mut self, size: Size<u32>) {
-        self.views.views.iter().for_each(|view| {
-            view.info.view.resize(size.width, size.height);
-            view.info.surface.resize(size.width, size.height);
-        })
-    }
-
-    fn pixel_buffer(&mut self) -> Option<(PixelFormat, Vec<u8>)> {
-        self.render();
-
-        let size = self.size()?;
-        let mut vec = Vec::new();
-        match self.views.get_current_mut()?.info.surface.lock_pixels() {
-            Some(pixel_data) => vec.extend_from_slice(&pixel_data),
-            None => {
-                let image = vec![255; size.0 as usize * size.1 as usize];
-                vec.extend_from_slice(&image)
+        // for each view save new view
+        // TODO: could probably be optimized for performace
+        for view in self.views.iter_mut() {
+            if let Some(pixels) = view.surface.lock_pixels() {
+                view.last_frame =
+                    ImageInfo::new(pixels.to_vec(), PixelFormat::Bgra, size.width, size.height);
             }
-        };
-
-        Some((PixelFormat::Bgra, vec))
+        }
     }
 
-    fn get_cursor(&self) -> mouse::Interaction {
-        *self
-            .views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .cursor
-            .read()
-            .unwrap()
+    fn request_render(&mut self, id: ViewId) {
+        self.get_view_mut(id).view.set_needs_paint(true)
     }
 
-    fn goto_html(&self, html: &str) {
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .load_html(html)
-            .unwrap();
-    }
+    fn new_view(&mut self, size: Size<u32>) -> ViewId {
+        let id = rand::thread_rng().gen();
 
-    fn goto_url(&self, url: &Url) {
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .load_url(url.as_ref())
-            .unwrap();
-    }
-
-    fn has_loaded(&self) -> Option<bool> {
-        Some(!self.views.get_current()?.info.view.is_loading())
-    }
-
-    fn get_views(&self) -> &Views<UltalightViewInfo> {
-        &self.views
-    }
-
-    fn get_views_mut(&mut self) -> &mut Views<UltalightViewInfo> {
-        &mut self.views
-    }
-
-    fn new_view(&mut self, page_type: PageType, size: Size<u32>) -> View<UltalightViewInfo> {
         let view = self
             .renderer
             .create_view(size.width, size.height, &self.view_config, None)
             .unwrap();
 
-        let surface = view.surface().unwrap();
-        match page_type {
-            PageType::Url(url) => view.load_url(url).expect("Failed to load url"),
-            PageType::Html(html) => view.load_html(html).expect("Failed to load custom html"),
-        }
+        let surface = view
+            .surface()
+            .expect("Could not get surface from Ultralight view");
 
-        // RGBA
+        // RGBA - ensure it has the right diamentions
         debug_assert!(surface.row_bytes() / size.width == 4);
 
         let cursor = Arc::new(RwLock::new(mouse::Interaction::Idle));
@@ -234,84 +170,48 @@ impl Engine for Ultralight {
             };
         });
 
-        let info = UltalightViewInfo {
+        let view = View {
+            id,
             surface,
             view,
             cursor,
+            last_frame: ImageInfo::default(),
         };
-
-        View::new(info)
+        self.views.push(view);
+        id
     }
 
-    fn refresh(&self) {
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .reload();
+    fn goto(&mut self, id: ViewId, page_type: PageType) {
+        match page_type {
+            PageType::Url(url) => self
+                .get_view_mut(id)
+                .view
+                .load_url(url)
+                .expect("Failed to load given url"),
+            PageType::Html(html) => self
+                .get_view_mut(id)
+                .view
+                .load_html(html)
+                .expect("Failed to load given html"),
+        }
     }
 
-    fn go_forward(&self) {
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .go_forward();
-    }
-
-    fn go_back(&self) {
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .go_back();
-    }
-
-    fn focus(&self) {
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .focus();
+    fn focus(&mut self) {
+        self.views.iter().for_each(|view| view.view.focus());
     }
 
     fn unfocus(&self) {
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .unfocus();
+        self.views.iter().for_each(|view| view.view.unfocus());
     }
 
-    fn scroll(&self, delta: ScrollDelta) {
-        let scroll_event = match delta {
-            ScrollDelta::Lines { x, y } => ScrollEvent::new(
-                ul_next::event::ScrollEventType::ScrollByPixel,
-                x as i32 * 100,
-                y as i32 * 100,
-            )
-            .unwrap(),
-            ScrollDelta::Pixels { x, y } => ScrollEvent::new(
-                ul_next::event::ScrollEventType::ScrollByPixel,
-                x as i32,
-                y as i32,
-            )
-            .unwrap(),
-        };
-        self.views
-            .get_current()
-            .expect("Unable to get current view id")
-            .info
-            .view
-            .fire_scroll_event(scroll_event);
+    fn resize(&mut self, size: Size<u32>) {
+        self.views.iter().for_each(|view| {
+            view.view.resize(size.width, size.height);
+            view.surface.resize(size.width, size.height);
+        })
     }
 
-    fn handle_keyboard_event(&self, event: keyboard::Event) {
+    fn handle_keyboard_event(&mut self, id: ViewId, event: keyboard::Event) {
         let key_event = match event {
             keyboard::Event::KeyPressed {
                 key,
@@ -346,104 +246,74 @@ impl Engine for Ultralight {
         };
 
         if let Some(key_event) = key_event {
-            self.views
-                .get_current()
-                .expect("Unable to get current view id")
-                .info
-                .view
-                .fire_key_event(key_event);
+            self.get_view_mut(id).view.fire_key_event(key_event);
         }
     }
 
-    fn handle_mouse_event(&mut self, point: Point, event: mouse::Event) {
+    fn handle_mouse_event(&mut self, id: ViewId, point: Point, event: mouse::Event) {
         match event {
             mouse::Event::ButtonReleased(mouse::Button::Forward) => {
-                self.go_forward();
+                self.go_forward(id);
             }
             mouse::Event::ButtonReleased(mouse::Button::Back) => {
-                self.go_back();
+                self.go_back(id);
             }
             mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                self.views
-                    .get_current()
-                    .expect("Unable to get current view id")
-                    .info
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseDown,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Left,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id).view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseDown,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Left,
+                    )
+                    .unwrap(),
+                );
             }
             mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                self.views
-                    .get_current()
-                    .expect("Unable to get current view id")
-                    .info
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseUp,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Left,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id).view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseUp,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Left,
+                    )
+                    .unwrap(),
+                );
             }
             mouse::Event::ButtonPressed(mouse::Button::Right) => {
-                self.views
-                    .get_current()
-                    .expect("Unable to get current view id")
-                    .info
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseDown,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Right,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id).view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseDown,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Right,
+                    )
+                    .unwrap(),
+                );
             }
             mouse::Event::ButtonReleased(mouse::Button::Right) => {
-                self.views
-                    .get_current()
-                    .expect("Unable to get current view id")
-                    .info
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseUp,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Right,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id).view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseUp,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Right,
+                    )
+                    .unwrap(),
+                );
             }
             mouse::Event::CursorMoved { position: _ } => {
-                self.views
-                    .get_current()
-                    .expect("Unable to get current view id")
-                    .info
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseMoved,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::None,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id).view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseMoved,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::None,
+                    )
+                    .unwrap(),
+                );
             }
-            mouse::Event::WheelScrolled { delta } => self.scroll(delta),
+            mouse::Event::WheelScrolled { delta } => self.scroll(id, delta),
             mouse::Event::CursorLeft => {
                 self.unfocus();
             }
@@ -452,6 +322,56 @@ impl Engine for Ultralight {
             }
             _ => (),
         }
+    }
+
+    fn refresh(&mut self, id: ViewId) {
+        self.get_view_mut(id).view.reload();
+    }
+
+    fn go_forward(&mut self, id: ViewId) {
+        self.get_view_mut(id).view.go_forward();
+    }
+
+    fn go_back(&mut self, id: ViewId) {
+        self.get_view_mut(id).view.go_back();
+    }
+
+    fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta) {
+        let scroll_event = match delta {
+            ScrollDelta::Lines { x, y } => ScrollEvent::new(
+                ul_next::event::ScrollEventType::ScrollByPixel,
+                x as i32 * 100,
+                y as i32 * 100,
+            )
+            .unwrap(),
+            ScrollDelta::Pixels { x, y } => ScrollEvent::new(
+                ul_next::event::ScrollEventType::ScrollByPixel,
+                x as i32,
+                y as i32,
+            )
+            .unwrap(),
+        };
+        self.get_view_mut(id).view.fire_scroll_event(scroll_event);
+    }
+
+    fn get_url(&self, id: ViewId) -> Option<String> {
+        self.get_view(id).view.url().ok()
+    }
+
+    fn get_title(&self, id: ViewId) -> Option<String> {
+        self.get_view(id).view.title().ok()
+    }
+
+    fn get_view(&self, id: ViewId) -> &ImageInfo {
+        &self.get_view(id).last_frame
+    }
+
+    fn get_cursor(&self, id: ViewId) -> mouse::Interaction {
+        *self
+            .get_view(id)
+            .cursor
+            .read()
+            .expect("Failed to get Ultraights cursor status")
     }
 }
 
