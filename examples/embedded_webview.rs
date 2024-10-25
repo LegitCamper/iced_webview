@@ -55,6 +55,7 @@ impl App {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::CreatedNewWebView => {
+                self.current_view = Some(0);
                 // Now that we know the webview has been created lets navigate to URL
                 let url = Url::parse(URL).unwrap();
                 Task::done(Action::GoToUrl(url)).map(Message::WebView)

@@ -138,7 +138,8 @@ impl Engine for Ultralight {
 
         let view = self
             .renderer
-            .create_view(size.width, size.height, &self.view_config, None)
+            // TODO: debug why new views are slanted unless do + 10/ - 10
+            .create_view(size.width + 10, size.height - 10, &self.view_config, None)
             .unwrap();
 
         let surface = view

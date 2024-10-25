@@ -123,6 +123,10 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 let id = self.engine.new_view(self.view_size);
                 self.urls.push((id, String::new()));
                 self.titles.push((id, String::new()));
+
+                if let Some(on_view_create) = &self.on_create_view {
+                    tasks.push(Task::done((on_view_create)(id)))
+                }
             }
             Action::GoBackward(id) => {
                 self.engine.go_back(id);

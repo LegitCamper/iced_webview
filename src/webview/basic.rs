@@ -117,7 +117,16 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 }
             }
             Action::CreateView => {
-                self.webview.engine.new_view(self.webview.view_size);
+                let id = self.webview.engine.new_view(self.webview.view_size);
+
+                if self.current_view == 0 {
+                    println!("setting current");
+                    self.current_view = id;
+                }
+
+                if let Some(on_view_create) = &self.on_create_view {
+                    tasks.push(Task::done(on_view_create.clone()))
+                }
             }
             Action::GoBackward => {
                 self.webview.engine.go_back(self.current_view);
