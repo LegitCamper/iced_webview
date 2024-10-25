@@ -14,6 +14,7 @@ pub enum PixelFormat {
     Bgra,
 }
 
+/// Alias of usize used for controlling specific views
 pub type ViewId = usize;
 
 /// Trait to handle multiple browser engines
@@ -27,6 +28,8 @@ pub trait Engine {
     fn request_render(&mut self, id: ViewId);
     /// Creates new a new blank view and returns the ViewId to interact with it
     fn new_view(&mut self, size: Size<u32>) -> ViewId;
+    /// Removes desired view
+    fn remove_view(&mut self, id: ViewId);
 
     // window changes - no id needed they work for all views
     fn focus(&mut self);
@@ -53,6 +56,6 @@ pub trait Engine {
 /// Allows users to create new views with url or custom html
 #[derive(Clone)]
 pub enum PageType {
-    Url(&'static str),
-    Html(&'static str),
+    Url(String),
+    Html(String),
 }

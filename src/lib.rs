@@ -2,10 +2,11 @@ pub use html::root::Html;
 use iced::widget::image;
 
 pub mod engines;
-pub use engines::{DisplayView, Engine, PageType, PixelFormat, ViewId};
+pub use engines::{Engine, PageType, PixelFormat, ViewId};
 
-pub mod webview;
-pub use webview::WebView;
+mod webview;
+pub use basic::{Action, WebView};
+pub use webview::{advanced, basic}; // pub these since its the default/reccommended method
 
 #[cfg(feature = "ultralight")]
 pub use engines::ultralight::Ultralight;

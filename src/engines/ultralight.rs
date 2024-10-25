@@ -181,17 +181,21 @@ impl Engine for Ultralight {
         id
     }
 
+    fn remove_view(&mut self, id: ViewId) {
+        self.views.retain(|view| view.id != id);
+    }
+
     fn goto(&mut self, id: ViewId, page_type: PageType) {
         match page_type {
             PageType::Url(url) => self
                 .get_view_mut(id)
                 .view
-                .load_url(url)
+                .load_url(&url)
                 .expect("Failed to load given url"),
             PageType::Html(html) => self
                 .get_view_mut(id)
                 .view
-                .load_html(html)
+                .load_html(&html)
                 .expect("Failed to load given html"),
         }
     }
