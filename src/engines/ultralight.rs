@@ -129,8 +129,15 @@ impl Engine for Ultralight {
         }
     }
 
-    fn request_render(&mut self, id: ViewId) {
-        self.get_view_mut(id).view.set_needs_paint(true)
+    fn request_render(&mut self, id: ViewId, size: Size<u32>) {
+        self.get_view_mut(id).view.set_needs_paint(true);
+
+        for view in self.views.iter_mut().filter(|view| view.id == id) {
+            if let Some(pixels) = view.surface.lock_pixels() {
+                view.last_frame =
+                    ImageInfo::new(pixels.to_vec(), PixelFormat::Bgra, size.width, size.height);
+            }
+        }
     }
 
     fn new_view(&mut self, size: Size<u32>) -> ViewId {
@@ -139,6 +146,7 @@ impl Engine for Ultralight {
         let view = self
             .renderer
             // TODO: debug why new views are slanted unless do + 10/ - 10
+            // maybe causes the fuzzyness
             .create_view(size.width + 10, size.height - 10, &self.view_config, None)
             .unwrap();
 

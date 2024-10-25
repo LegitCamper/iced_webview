@@ -15,6 +15,7 @@ pub enum PixelFormat {
 }
 
 /// Alias of usize used for controlling specific views
+/// Only used by advanced to get views, basic simply uses u32
 pub type ViewId = usize;
 
 /// Trait to handle multiple browser engines
@@ -25,7 +26,7 @@ pub trait Engine {
     /// Has Ultralight perform a new render
     fn render(&mut self, size: Size<u32>);
     /// Request that the browser engine rerender a specific view that may have been updated
-    fn request_render(&mut self, id: ViewId);
+    fn request_render(&mut self, id: ViewId, size: Size<u32>);
     /// Creates new a new blank view and returns the ViewId to interact with it
     fn new_view(&mut self, size: Size<u32>) -> ViewId;
     /// Removes desired view

@@ -17,9 +17,13 @@ use crate::{engines, ImageInfo, PageType, ViewId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    ChangeView(ViewId),
+    /// Changes view to the desired view index
+    ChangeView(u32),
+    /// Closes current window & makes last used view the current one
     CloseCurrentView,
-    CloseView(ViewId),
+    /// Closes specific view id
+    CloseView(u32),
+    /// Creates a new view and makes its index view + 1
     CreateView,
     GoBackward,
     GoForward,
@@ -27,6 +31,7 @@ pub enum Action {
     Refresh,
     SendKeyboardEvent(keyboard::Event),
     SendMouseEvent(mouse::Event, Point),
+    /// Allows users to control when the browser engine proccesses interactions in subscriptions
     Update,
     Resize(Size<u32>),
 }
@@ -35,7 +40,8 @@ pub struct WebView<Engine, Message>
 where
     Engine: engines::Engine,
 {
-    current_view: ViewId,
+    current_view: Option<u32>,
+    view_ids: Vec<ViewId>, // allow users to index by simple id like 0 or 1 instead of a true id
     on_close_view: Option<Message>,
     on_create_view: Option<Message>,
     on_url_change: Option<Box<dyn Fn(String) -> Message>>,
@@ -46,9 +52,29 @@ where
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
+    fn get_view_index(&self) -> usize {
+        *self
+            .view_ids
+            .get(
+                self.current_view
+                    .expect("Current webview has not been set yet") as usize,
+            )
+            .expect("Failed to find that index, maybe its already been closed?")
+    }
+
+    fn index_to_view_id(&self, index: u32) -> usize {
+        *self
+            .view_ids
+            .get(index as usize)
+            .expect("Failed to find that index, maybe its already been closed?")
+    }
+}
+
+impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
     pub fn new() -> Self {
         WebView {
-            current_view: 0,
+            current_view: None,
+            view_ids: Vec::new(),
             on_close_view: None,
             on_create_view: None,
             on_url_change: None,
@@ -86,71 +112,77 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     pub fn update(&mut self, action: Action) -> Task<Message> {
         let mut tasks = Vec::new();
 
-        if self.current_view != 0 {
-            if let Some(url) = self.webview.engine.get_url(self.current_view) {
-                if self.url != url {
-                    self.url = url;
+        if let Some(_) = self.current_view {
+            if let Some(on_url_change) = &self.on_url_change {
+                if let Some(url) = self.webview.engine.get_url(self.get_view_index()) {
+                    if self.url != url {
+                        self.url = url.clone();
+                        tasks.push(Task::done(on_url_change(url)))
+                    }
                 }
             }
-            if let Some(title) = self.webview.engine.get_title(self.current_view) {
-                if self.title != title {
-                    self.title = title;
+            if let Some(on_title_change) = &self.on_title_change {
+                if let Some(title) = self.webview.engine.get_title(self.get_view_index()) {
+                    if self.title != title {
+                        self.title = title.clone();
+                        tasks.push(Task::done(on_title_change(title)))
+                    }
                 }
             }
         }
 
         match action {
-            Action::ChangeView(id) => {
-                self.current_view = id;
+            Action::ChangeView(index) => {
+                self.current_view = Some(index);
             }
             Action::CloseCurrentView => {
-                self.webview.engine.remove_view(self.current_view);
+                self.webview.engine.remove_view(self.get_view_index());
+                self.view_ids.remove(self.get_view_index());
                 if let Some(on_view_close) = &self.on_close_view {
                     tasks.push(Task::done(on_view_close.clone()));
                 }
             }
-            Action::CloseView(id) => {
-                self.webview.engine.remove_view(id);
+            Action::CloseView(index) => {
+                self.webview
+                    .engine
+                    .remove_view(self.index_to_view_id(index));
+                self.view_ids.remove(self.index_to_view_id(index));
 
                 if let Some(on_view_close) = &self.on_close_view {
                     tasks.push(Task::done(on_view_close.clone()))
                 }
             }
             Action::CreateView => {
-                let id = self.webview.engine.new_view(self.webview.view_size);
-
-                if self.current_view == 0 {
-                    println!("setting current");
-                    self.current_view = id;
-                }
+                self.view_ids
+                    .push(self.webview.engine.new_view(self.webview.view_size));
 
                 if let Some(on_view_create) = &self.on_create_view {
                     tasks.push(Task::done(on_view_create.clone()))
                 }
             }
             Action::GoBackward => {
-                self.webview.engine.go_back(self.current_view);
+                self.webview.engine.go_back(self.get_view_index());
             }
             Action::GoForward => {
-                self.webview.engine.go_forward(self.current_view);
+                self.webview.engine.go_forward(self.get_view_index());
             }
             Action::GoToUrl(url) => {
                 self.webview
                     .engine
-                    .goto(self.current_view, PageType::Url(url.to_string()));
+                    .goto(self.get_view_index(), PageType::Url(url.to_string()));
             }
             Action::Refresh => {
-                self.webview.engine.refresh(self.current_view);
+                self.webview.engine.refresh(self.get_view_index());
             }
             Action::SendKeyboardEvent(event) => {
                 self.webview
                     .engine
-                    .handle_keyboard_event(self.current_view, event);
+                    .handle_keyboard_event(self.get_view_index(), event);
             }
             Action::SendMouseEvent(point, event) => {
                 self.webview
                     .engine
-                    .handle_mouse_event(self.current_view, event, point);
+                    .handle_mouse_event(self.get_view_index(), event, point);
             }
             Action::Update => {
                 self.webview.engine.update();
@@ -171,9 +203,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
     /// Returns webview element for the current view
     pub fn view(&self) -> Element<Action> {
-        WebViewWidget::new(
+        WebViewWidget::with(
             self.webview.view_size,
-            self.webview.engine.get_view(self.current_view),
+            self.webview.engine.get_view(self.get_view_index()),
         )
         .into()
     }
@@ -185,7 +217,7 @@ struct WebViewWidget {
 }
 
 impl WebViewWidget {
-    fn new(bounds: Size<u32>, image: &ImageInfo) -> Self {
+    fn with(bounds: Size<u32>, image: &ImageInfo) -> Self {
         Self {
             bounds,
             image: image.as_image(),
