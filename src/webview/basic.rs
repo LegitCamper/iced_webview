@@ -99,74 +99,59 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
         }
 
-        tasks.push(match action {
+        match action {
             Action::ChangeView(id) => {
                 self.current_view = id;
-                Task::none()
             }
             Action::CloseCurrentView => {
                 self.webview.engine.remove_view(self.current_view);
-
                 if let Some(on_view_close) = &self.on_close_view {
-                    Task::done(on_view_close.clone())
-                } else {
-                    Task::none()
+                    tasks.push(Task::done(on_view_close.clone()));
                 }
             }
             Action::CloseView(id) => {
                 self.webview.engine.remove_view(id);
 
                 if let Some(on_view_close) = &self.on_close_view {
-                    Task::done(on_view_close.clone())
-                } else {
-                    Task::none()
+                    tasks.push(Task::done(on_view_close.clone()))
                 }
             }
             Action::CreateView => {
                 self.webview.engine.new_view(self.webview.view_size);
-                Task::none()
             }
             Action::GoBackward => {
                 self.webview.engine.go_back(self.current_view);
-                Task::none()
             }
             Action::GoForward => {
                 self.webview.engine.go_forward(self.current_view);
-                Task::none()
             }
             Action::GoToUrl(url) => {
                 self.webview
                     .engine
                     .goto(self.current_view, PageType::Url(url.to_string()));
-                Task::none()
             }
             Action::Refresh => {
                 self.webview.engine.refresh(self.current_view);
-                Task::none()
             }
             Action::SendKeyboardEvent(event) => {
                 self.webview
                     .engine
                     .handle_keyboard_event(self.current_view, event);
-                Task::none()
             }
             Action::SendMouseEvent(point, event) => {
                 self.webview
                     .engine
                     .handle_mouse_event(self.current_view, event, point);
-                Task::none()
             }
             Action::Update => {
                 self.webview.engine.update();
                 self.webview.engine.render(self.webview.view_size);
-                Task::none()
             }
             Action::Resize(size) => {
                 self.webview.view_size = size;
                 self.webview.engine.resize(size);
-                Task::none()
             }
-        });
+        };
 
         if tasks.is_empty() {
             Task::none()

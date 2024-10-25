@@ -35,8 +35,8 @@ where
 {
     pub engine: Engine,
     pub view_size: Size<u32>,
-    pub on_close_view: Option<Box<dyn Fn(ViewId) -> Message>>,
-    pub on_create_view: Option<Box<dyn Fn(ViewId) -> Message>>,
+    on_close_view: Option<Box<dyn Fn(ViewId) -> Message>>,
+    on_create_view: Option<Box<dyn Fn(ViewId) -> Message>>,
     on_url_change: Option<Box<dyn Fn(ViewId, String) -> Message>>,
     urls: Vec<(ViewId, String)>,
     on_title_change: Option<Box<dyn Fn(ViewId, String) -> Message>>,
@@ -109,59 +109,48 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
         }
 
-        tasks.push(match action {
+        match action {
             Action::CloseView(id) => {
                 self.engine.remove_view(id);
                 self.urls.retain(|url| url.0 != id);
                 self.titles.retain(|title| title.0 != id);
 
                 if let Some(on_view_close) = &self.on_close_view {
-                    Task::done((on_view_close)(id))
-                } else {
-                    Task::none()
+                    tasks.push(Task::done((on_view_close)(id)))
                 }
             }
             Action::CreateView => {
                 let id = self.engine.new_view(self.view_size);
                 self.urls.push((id, String::new()));
                 self.titles.push((id, String::new()));
-                Task::none()
             }
             Action::GoBackward(id) => {
                 self.engine.go_back(id);
-                Task::none()
             }
             Action::GoForward(id) => {
                 self.engine.go_forward(id);
-                Task::none()
             }
             Action::GoToUrl(id, url) => {
                 self.engine.goto(id, PageType::Url(url.to_string()));
-                Task::none()
             }
             Action::Refresh(id) => {
                 self.engine.refresh(id);
-                Task::none()
             }
             Action::SendKeyboardEvent(id, event) => {
                 self.engine.handle_keyboard_event(id, event);
-                Task::none()
             }
             Action::SendMouseEvent(id, point, event) => {
                 self.engine.handle_mouse_event(id, event, point);
-                Task::none()
             }
             Action::Update => {
                 self.engine.update();
                 self.engine.render(self.view_size);
-                Task::none()
             }
             Action::Resize(size) => {
                 self.view_size = size;
                 self.engine.resize(size);
-                Task::none()
             }
-        });
+        };
 
         if tasks.is_empty() {
             Task::none()
