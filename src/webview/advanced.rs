@@ -44,20 +44,17 @@ where
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    pub fn new() -> (Self, Task<Action>) {
-        (
-            WebView {
-                engine: Engine::default(),
-                view_size: Size::new(1920, 1080),
-                on_close_view: None,
-                on_create_view: None,
-                on_url_change: None,
-                urls: Vec::new(),
-                on_title_change: None,
-                titles: Vec::new(),
-            },
-            Task::done(Action::CreateView),
-        )
+    pub fn new() -> Self {
+        WebView {
+            engine: Engine::default(),
+            view_size: Size::new(1920, 1080),
+            on_close_view: None,
+            on_create_view: None,
+            on_url_change: None,
+            urls: Vec::new(),
+            on_title_change: None,
+            titles: Vec::new(),
+        }
     }
 
     pub fn on_create_view(mut self, on_create_view: impl Fn(usize) -> Message + 'static) -> Self {
@@ -115,6 +112,8 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         tasks.push(match action {
             Action::CloseView(id) => {
                 self.engine.remove_view(id);
+                self.urls.retain(|url| url.0 != id);
+                self.titles.retain(|title| title.0 != id);
 
                 if let Some(on_view_close) = &self.on_close_view {
                     Task::done((on_view_close)(id))
@@ -123,7 +122,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 }
             }
             Action::CreateView => {
-                self.engine.new_view(self.view_size);
+                let id = self.engine.new_view(self.view_size);
+                self.urls.push((id, String::new()));
+                self.titles.push((id, String::new()));
                 Task::none()
             }
             Action::GoBackward(id) => {

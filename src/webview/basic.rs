@@ -36,6 +36,8 @@ where
     Engine: engines::Engine,
 {
     current_view: ViewId,
+    on_close_view: Option<Message>,
+    on_create_view: Option<Message>,
     on_url_change: Option<Box<dyn Fn(String) -> Message>>,
     url: String,
     on_title_change: Option<Box<dyn Fn(String) -> Message>>,
@@ -44,27 +46,26 @@ where
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    pub fn new() -> (Self, Task<Action>) {
-        (
-            WebView {
-                current_view: 0,
-                on_url_change: None,
-                url: String::new(),
-                on_title_change: None,
-                title: String::new(),
-                webview: super::advanced::WebView::new().0, // only keeps webview - we use basic task instead
-            },
-            Task::done(Action::CreateView),
-        )
+    pub fn new() -> Self {
+        WebView {
+            current_view: 0,
+            on_close_view: None,
+            on_create_view: None,
+            on_url_change: None,
+            url: String::new(),
+            on_title_change: None,
+            title: String::new(),
+            webview: super::advanced::WebView::new(),
+        }
     }
 
-    pub fn on_create_view(mut self, on_create_view: impl Fn(usize) -> Message + 'static) -> Self {
-        self.webview.on_create_view = Some(Box::new(on_create_view));
+    pub fn on_create_view(mut self, on_create_view: Message) -> Self {
+        self.on_create_view = Some(on_create_view);
         self
     }
 
-    pub fn on_close_view(mut self, on_close_view: impl Fn(usize) -> Message + 'static) -> Self {
-        self.webview.on_close_view = Some(Box::new(on_close_view));
+    pub fn on_close_view(mut self, on_close_view: Message) -> Self {
+        self.on_close_view = Some(on_close_view);
         self
     }
 
@@ -85,14 +86,16 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     pub fn update(&mut self, action: Action) -> Task<Message> {
         let mut tasks = Vec::new();
 
-        if let Some(url) = self.webview.engine.get_url(self.current_view) {
-            if self.url != url {
-                self.url = url;
+        if self.current_view != 0 {
+            if let Some(url) = self.webview.engine.get_url(self.current_view) {
+                if self.url != url {
+                    self.url = url;
+                }
             }
-        }
-        if let Some(title) = self.webview.engine.get_title(self.current_view) {
-            if self.title != title {
-                self.title = title;
+            if let Some(title) = self.webview.engine.get_title(self.current_view) {
+                if self.title != title {
+                    self.title = title;
+                }
             }
         }
 
@@ -104,8 +107,8 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             Action::CloseCurrentView => {
                 self.webview.engine.remove_view(self.current_view);
 
-                if let Some(on_view_close) = &self.webview.on_close_view {
-                    Task::done((on_view_close)(self.current_view))
+                if let Some(on_view_close) = &self.on_close_view {
+                    Task::done(on_view_close.clone())
                 } else {
                     Task::none()
                 }
@@ -113,8 +116,8 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             Action::CloseView(id) => {
                 self.webview.engine.remove_view(id);
 
-                if let Some(on_view_close) = &self.webview.on_close_view {
-                    Task::done((on_view_close)(id))
+                if let Some(on_view_close) = &self.on_close_view {
+                    Task::done(on_view_close.clone())
                 } else {
                     Task::none()
                 }
