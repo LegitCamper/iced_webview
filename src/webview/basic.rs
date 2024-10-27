@@ -52,14 +52,8 @@ where
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    fn get_view_index(&self) -> usize {
-        *self
-            .view_ids
-            .get(
-                self.current_view
-                    .expect("Current webview has not been set yet") as usize,
-            )
-            .expect("Failed to find that index, maybe its already been closed?")
+    fn get_view_index(&self) -> Option<usize> {
+        Some(*self.view_ids.get(self.current_view? as usize)?)
     }
 
     fn index_to_view_id(&self, index: u32) -> usize {
@@ -113,19 +107,21 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         let mut tasks = Vec::new();
 
         if let Some(_) = self.current_view {
-            if let Some(on_url_change) = &self.on_url_change {
-                if let Some(url) = self.webview.engine.get_url(self.get_view_index()) {
-                    if self.url != url {
-                        self.url = url.clone();
-                        tasks.push(Task::done(on_url_change(url)))
+            if let Some(view_index) = self.get_view_index() {
+                if let Some(on_url_change) = &self.on_url_change {
+                    if let Some(url) = self.webview.engine.get_url(view_index) {
+                        if self.url != url {
+                            self.url = url.clone();
+                            tasks.push(Task::done(on_url_change(url)))
+                        }
                     }
                 }
-            }
-            if let Some(on_title_change) = &self.on_title_change {
-                if let Some(title) = self.webview.engine.get_title(self.get_view_index()) {
-                    if self.title != title {
-                        self.title = title.clone();
-                        tasks.push(Task::done(on_title_change(title)))
+                if let Some(on_title_change) = &self.on_title_change {
+                    if let Some(title) = self.webview.engine.get_title(view_index) {
+                        if self.title != title {
+                            self.title = title.clone();
+                            tasks.push(Task::done(on_title_change(title)))
+                        }
                     }
                 }
             }
@@ -136,8 +132,11 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 self.current_view = Some(index);
             }
             Action::CloseCurrentView => {
-                self.webview.engine.remove_view(self.get_view_index());
-                self.view_ids.remove(self.get_view_index());
+                let Some(view_index) = self.get_view_index() else {
+                    return Task::batch(tasks);
+                };
+                self.webview.engine.remove_view(view_index);
+                self.view_ids.remove(view_index);
                 if let Some(on_view_close) = &self.on_close_view {
                     tasks.push(Task::done(on_view_close.clone()));
                 }
@@ -161,28 +160,44 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 }
             }
             Action::GoBackward => {
-                self.webview.engine.go_back(self.get_view_index());
+                let Some(view_index) = self.get_view_index() else {
+                    return Task::batch(tasks);
+                };
+                self.webview.engine.go_back(view_index);
             }
             Action::GoForward => {
-                self.webview.engine.go_forward(self.get_view_index());
+                let Some(view_index) = self.get_view_index() else {
+                    return Task::batch(tasks);
+                };
+                self.webview.engine.go_forward(view_index);
             }
             Action::GoToUrl(url) => {
+                let Some(view_index) = self.get_view_index() else {
+                    return Task::batch(tasks);
+                };
                 self.webview
                     .engine
-                    .goto(self.get_view_index(), PageType::Url(url.to_string()));
+                    .goto(view_index, PageType::Url(url.to_string()));
             }
             Action::Refresh => {
-                self.webview.engine.refresh(self.get_view_index());
+                let Some(view_index) = self.get_view_index() else {
+                    return Task::batch(tasks);
+                };
+                self.webview.engine.refresh(view_index);
             }
             Action::SendKeyboardEvent(event) => {
-                self.webview
-                    .engine
-                    .handle_keyboard_event(self.get_view_index(), event);
+                let Some(view_index) = self.get_view_index() else {
+                    return Task::batch(tasks);
+                };
+                self.webview.engine.handle_keyboard_event(view_index, event);
             }
             Action::SendMouseEvent(point, event) => {
+                let Some(view_index) = self.get_view_index() else {
+                    return Task::batch(tasks);
+                };
                 self.webview
                     .engine
-                    .handle_mouse_event(self.get_view_index(), event, point);
+                    .handle_mouse_event(view_index, event, point);
             }
             Action::Update => {
                 self.webview.engine.update();
@@ -194,19 +209,18 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
         };
 
-        if tasks.is_empty() {
-            Task::none()
-        } else {
-            Task::batch(tasks)
-        }
+        Task::batch(tasks)
     }
 
     /// Returns webview element for the current view
     pub fn view(&self) -> Element<Action> {
-        WebViewWidget::with(
-            self.webview.view_size,
-            self.webview.engine.get_view(self.get_view_index()),
-        )
+        match self.get_view_index() {
+            Some(view_index) => WebViewWidget::with(
+                self.webview.view_size,
+                self.webview.engine.get_view(view_index),
+            ),
+            None => WebViewWidget::with(self.webview.view_size, &ImageInfo::default()),
+        }
         .into()
     }
 }
@@ -305,5 +319,26 @@ where
 {
     fn from(widget: WebViewWidget) -> Self {
         Self::new(widget)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Clone)]
+    struct Message {}
+
+    #[test]
+    fn test_view_interactions() {
+        // using ultralight here crashes?
+        let mut webview: WebView<engines::test::Test, Message> = WebView::new();
+        let _ = webview.update(Action::CreateView);
+        assert_eq!(webview.view_ids.len(), 1);
+        let _ = webview.update(Action::ChangeView(0));
+        let _ = webview.update(Action::CloseCurrentView);
+
+        assert_eq!(webview.current_view, None);
+        assert_eq!(webview.view_ids.len(), 0);
     }
 }

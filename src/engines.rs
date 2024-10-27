@@ -6,6 +6,8 @@ use iced::Point;
 
 use crate::ImageInfo;
 
+pub mod test;
+
 #[cfg(feature = "ultralight")]
 pub mod ultralight;
 
