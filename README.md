@@ -9,8 +9,15 @@ A library to embed Web views in iced applications
 #### examples:
 
 ##### `examples/embedded_webview`
+A simple example to showcase an embedded webview (uses the basic webview)
 ```sh
 cargo run --example embedded_webview --features ultralight-resources
+```
+
+##### `examples/multi_webview`
+A more advanced example that uses the advanced webview module and has two simultaneous webviews open
+```sh
+cargo run --example multi_webview --features ultralight-resources
 ```
 
 ## Extra files (Resources)
