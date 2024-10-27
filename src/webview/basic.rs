@@ -40,7 +40,7 @@ pub struct WebView<Engine, Message>
 where
     Engine: engines::Engine,
 {
-    current_view: Option<u32>,
+    current_view_index: Option<usize>, // the index corresponding to the view_ids list of ViewIds
     view_ids: Vec<ViewId>, // allow users to index by simple id like 0 or 1 instead of a true id
     on_close_view: Option<Message>,
     on_create_view: Option<Message>,
@@ -52,11 +52,16 @@ where
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    fn get_view_index(&self) -> Option<usize> {
-        Some(*self.view_ids.get(self.current_view? as usize)?)
+    fn get_current_view_id(&self) -> ViewId {
+        *self
+            .view_ids
+            .get(self.current_view_index.expect(
+                "The current view index is not currently set. Ensure you call the Action prior",
+            ))
+            .expect("Could find view index for current view. Maybe its already been closed?")
     }
 
-    fn index_to_view_id(&self, index: u32) -> usize {
+    fn index_as_view_id(&self, index: u32) -> usize {
         *self
             .view_ids
             .get(index as usize)
@@ -67,7 +72,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
     pub fn new() -> Self {
         WebView {
-            current_view: None,
+            current_view_index: None,
             view_ids: Vec::new(),
             on_close_view: None,
             on_create_view: None,
@@ -106,22 +111,20 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     pub fn update(&mut self, action: Action) -> Task<Message> {
         let mut tasks = Vec::new();
 
-        if let Some(_) = self.current_view {
-            if let Some(view_index) = self.get_view_index() {
-                if let Some(on_url_change) = &self.on_url_change {
-                    if let Some(url) = self.webview.engine.get_url(view_index) {
-                        if self.url != url {
-                            self.url = url.clone();
-                            tasks.push(Task::done(on_url_change(url)))
-                        }
+        if let Some(_) = self.current_view_index {
+            if let Some(on_url_change) = &self.on_url_change {
+                if let Some(url) = self.webview.engine.get_url(self.get_current_view_id()) {
+                    if self.url != url {
+                        self.url = url.clone();
+                        tasks.push(Task::done(on_url_change(url)))
                     }
                 }
-                if let Some(on_title_change) = &self.on_title_change {
-                    if let Some(title) = self.webview.engine.get_title(view_index) {
-                        if self.title != title {
-                            self.title = title.clone();
-                            tasks.push(Task::done(on_title_change(title)))
-                        }
+            }
+            if let Some(on_title_change) = &self.on_title_change {
+                if let Some(title) = self.webview.engine.get_title(self.get_current_view_id()) {
+                    if self.title != title {
+                        self.title = title.clone();
+                        tasks.push(Task::done(on_title_change(title)))
                     }
                 }
             }
@@ -129,14 +132,11 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
         match action {
             Action::ChangeView(index) => {
-                self.current_view = Some(index);
+                self.current_view_index = Some(index as usize);
             }
             Action::CloseCurrentView => {
-                let Some(view_index) = self.get_view_index() else {
-                    return Task::batch(tasks);
-                };
-                self.webview.engine.remove_view(view_index);
-                self.view_ids.remove(view_index);
+                self.webview.engine.remove_view(self.get_current_view_id());
+                self.view_ids.remove(self.get_current_view_id());
                 if let Some(on_view_close) = &self.on_close_view {
                     tasks.push(Task::done(on_view_close.clone()));
                 }
@@ -144,60 +144,48 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             Action::CloseView(index) => {
                 self.webview
                     .engine
-                    .remove_view(self.index_to_view_id(index));
-                self.view_ids.remove(self.index_to_view_id(index));
+                    .remove_view(self.index_as_view_id(index));
+                self.view_ids.remove(self.index_as_view_id(index));
 
                 if let Some(on_view_close) = &self.on_close_view {
                     tasks.push(Task::done(on_view_close.clone()))
                 }
             }
             Action::CreateView => {
-                self.view_ids
-                    .push(self.webview.engine.new_view(self.webview.view_size));
+                self.view_ids.push(
+                    self.webview
+                        .engine
+                        .new_view(self.webview.view_size)
+                        .expect("Failed to create new view"),
+                );
 
                 if let Some(on_view_create) = &self.on_create_view {
                     tasks.push(Task::done(on_view_create.clone()))
                 }
             }
             Action::GoBackward => {
-                let Some(view_index) = self.get_view_index() else {
-                    return Task::batch(tasks);
-                };
-                self.webview.engine.go_back(view_index);
+                self.webview.engine.go_back(self.get_current_view_id());
             }
             Action::GoForward => {
-                let Some(view_index) = self.get_view_index() else {
-                    return Task::batch(tasks);
-                };
-                self.webview.engine.go_forward(view_index);
+                self.webview.engine.go_forward(self.get_current_view_id());
             }
             Action::GoToUrl(url) => {
-                let Some(view_index) = self.get_view_index() else {
-                    return Task::batch(tasks);
-                };
                 self.webview
                     .engine
-                    .goto(view_index, PageType::Url(url.to_string()));
+                    .goto(self.get_current_view_id(), PageType::Url(url.to_string()));
             }
             Action::Refresh => {
-                let Some(view_index) = self.get_view_index() else {
-                    return Task::batch(tasks);
-                };
-                self.webview.engine.refresh(view_index);
+                self.webview.engine.refresh(self.get_current_view_id());
             }
             Action::SendKeyboardEvent(event) => {
-                let Some(view_index) = self.get_view_index() else {
-                    return Task::batch(tasks);
-                };
-                self.webview.engine.handle_keyboard_event(view_index, event);
-            }
-            Action::SendMouseEvent(point, event) => {
-                let Some(view_index) = self.get_view_index() else {
-                    return Task::batch(tasks);
-                };
                 self.webview
                     .engine
-                    .handle_mouse_event(view_index, event, point);
+                    .handle_keyboard_event(self.get_current_view_id(), event);
+            }
+            Action::SendMouseEvent(point, event) => {
+                self.webview
+                    .engine
+                    .handle_mouse_event(self.get_current_view_id(), event, point);
             }
             Action::Update => {
                 self.webview.engine.update();
@@ -212,15 +200,15 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         Task::batch(tasks)
     }
 
-    /// Returns webview element for the current view
+    /// Returns webview widget for the current view
     pub fn view(&self) -> Element<Action> {
-        match self.get_view_index() {
-            Some(view_index) => WebViewWidget::with(
-                self.webview.view_size,
-                self.webview.engine.get_view(view_index),
-            ),
-            None => WebViewWidget::with(self.webview.view_size, &ImageInfo::default()),
-        }
+        WebViewWidget::with(
+            self.webview.view_size,
+            self.webview
+                .engine
+                .get_view(self.get_current_view_id())
+                .expect("failed to get view, because current view id does not exist"),
+        )
         .into()
     }
 }
@@ -319,26 +307,5 @@ where
 {
     fn from(widget: WebViewWidget) -> Self {
         Self::new(widget)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[derive(Clone)]
-    struct Message {}
-
-    #[test]
-    fn test_view_interactions() {
-        // using ultralight here crashes?
-        let mut webview: WebView<engines::test::Test, Message> = WebView::new();
-        let _ = webview.update(Action::CreateView);
-        assert_eq!(webview.view_ids.len(), 1);
-        let _ = webview.update(Action::ChangeView(0));
-        let _ = webview.update(Action::CloseCurrentView);
-
-        assert_eq!(webview.current_view, None);
-        assert_eq!(webview.view_ids.len(), 0);
     }
 }

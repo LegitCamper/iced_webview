@@ -93,21 +93,22 @@ impl Ultralight {
         }
     }
 
-    fn get_view(&self, id: ViewId) -> &View {
+    fn get_view(&self, id: ViewId) -> Option<&View> {
         for view in self.views.iter() {
             if view.id == id {
-                return &view;
+                return Some(&view);
             }
         }
-        panic!("Could not find id: {}", id);
+        None
     }
-    fn get_view_mut(&mut self, id: ViewId) -> &mut View {
+
+    fn get_view_mut(&mut self, id: ViewId) -> Option<&mut View> {
         for view in self.views.iter_mut() {
             if view.id == id {
-                return view;
+                return Some(view);
             }
         }
-        panic!("Could not find id: {}", id);
+        None
     }
 }
 
@@ -129,30 +130,29 @@ impl Engine for Ultralight {
         }
     }
 
-    fn request_render(&mut self, id: ViewId, size: Size<u32>) {
-        self.get_view_mut(id).view.set_needs_paint(true);
+    fn request_render(&mut self, id: ViewId, size: Size<u32>) -> Option<()> {
+        self.get_view_mut(id)?.view.set_needs_paint(true);
 
         for view in self.views.iter_mut().filter(|view| view.id == id) {
             if let Some(pixels) = view.surface.lock_pixels() {
                 view.last_frame =
                     ImageInfo::new(pixels.to_vec(), PixelFormat::Bgra, size.width, size.height);
+                return Some(());
             }
         }
+        None
     }
 
-    fn new_view(&mut self, size: Size<u32>) -> ViewId {
+    fn new_view(&mut self, size: Size<u32>) -> Option<ViewId> {
         let id = rand::thread_rng().gen();
 
         let view = self
             .renderer
             // TODO: debug why new views are slanted unless do + 10/ - 10
             // maybe causes the fuzzyness
-            .create_view(size.width + 10, size.height - 10, &self.view_config, None)
-            .unwrap();
+            .create_view(size.width + 10, size.height - 10, &self.view_config, None)?;
 
-        let surface = view
-            .surface()
-            .expect("Could not get surface from Ultralight view");
+        let surface = view.surface()?;
 
         // RGBA - ensure it has the right diamentions
         debug_assert!(surface.row_bytes() / size.width == 4);
@@ -160,7 +160,7 @@ impl Engine for Ultralight {
         let cursor = Arc::new(RwLock::new(mouse::Interaction::Idle));
         let cb_cursor = cursor.clone();
         view.set_change_cursor_callback(move |_view, cursor_update| {
-            *cb_cursor.write().unwrap() = match cursor_update {
+            *cb_cursor.write().expect("Failed to write cursor status") = match cursor_update {
                 Cursor::None => mouse::Interaction::Idle,
                 Cursor::Pointer => mouse::Interaction::Idle,
                 Cursor::Hand => mouse::Interaction::Pointer,
@@ -187,26 +187,25 @@ impl Engine for Ultralight {
             last_frame: ImageInfo::default(),
         };
         self.views.push(view);
-        id
+        Some(id)
     }
 
-    fn remove_view(&mut self, id: ViewId) {
+    fn remove_view(&mut self, id: ViewId) -> Option<()> {
+        let views = self.views.len();
         self.views.retain(|view| view.id != id);
+        if self.views.len() == views {
+            None
+        } else {
+            Some(())
+        }
     }
 
-    fn goto(&mut self, id: ViewId, page_type: PageType) {
+    fn goto(&mut self, id: ViewId, page_type: PageType) -> Option<()> {
         match page_type {
-            PageType::Url(url) => self
-                .get_view_mut(id)
-                .view
-                .load_url(&url)
-                .expect("Failed to load given url"),
-            PageType::Html(html) => self
-                .get_view_mut(id)
-                .view
-                .load_html(&html)
-                .expect("Failed to load given html"),
+            PageType::Url(url) => self.get_view_mut(id)?.view.load_url(&url).ok()?,
+            PageType::Html(html) => self.get_view_mut(id)?.view.load_html(&html).ok()?,
         }
+        Some(())
     }
 
     fn focus(&mut self) {
@@ -224,7 +223,7 @@ impl Engine for Ultralight {
         })
     }
 
-    fn handle_keyboard_event(&mut self, id: ViewId, event: keyboard::Event) {
+    fn handle_keyboard_event(&mut self, id: ViewId, event: keyboard::Event) -> Option<()> {
         let key_event = match event {
             keyboard::Event::KeyPressed {
                 key,
@@ -259,97 +258,91 @@ impl Engine for Ultralight {
         };
 
         if let Some(key_event) = key_event {
-            self.get_view_mut(id).view.fire_key_event(key_event);
+            self.get_view_mut(id)?.view.fire_key_event(key_event);
         }
+        Some(())
     }
 
-    fn handle_mouse_event(&mut self, id: ViewId, point: Point, event: mouse::Event) {
+    fn handle_mouse_event(&mut self, id: ViewId, point: Point, event: mouse::Event) -> Option<()> {
         match event {
-            mouse::Event::ButtonReleased(mouse::Button::Forward) => {
-                self.go_forward(id);
-            }
-            mouse::Event::ButtonReleased(mouse::Button::Back) => {
-                self.go_back(id);
-            }
-            mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                self.get_view_mut(id).view.fire_mouse_event(
+            mouse::Event::ButtonReleased(mouse::Button::Forward) => self.go_forward(id),
+            mouse::Event::ButtonReleased(mouse::Button::Back) => self.go_back(id),
+            mouse::Event::ButtonPressed(mouse::Button::Left) => Some(
+                self.get_view_mut(id)?.view.fire_mouse_event(
                     MouseEvent::new(
                         ul_next::event::MouseEventType::MouseDown,
                         point.x as i32,
                         point.y as i32,
                         ul_next::event::MouseButton::Left,
                     )
-                    .unwrap(),
-                );
-            }
-            mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                self.get_view_mut(id).view.fire_mouse_event(
+                    .expect("Ultralight failed to fire mouse input"),
+                ),
+            ),
+            mouse::Event::ButtonReleased(mouse::Button::Left) => Some(
+                self.get_view_mut(id)?.view.fire_mouse_event(
                     MouseEvent::new(
                         ul_next::event::MouseEventType::MouseUp,
                         point.x as i32,
                         point.y as i32,
                         ul_next::event::MouseButton::Left,
                     )
-                    .unwrap(),
-                );
-            }
-            mouse::Event::ButtonPressed(mouse::Button::Right) => {
-                self.get_view_mut(id).view.fire_mouse_event(
+                    .expect("Ultralight failed to fire mouse input"),
+                ),
+            ),
+            mouse::Event::ButtonPressed(mouse::Button::Right) => Some(
+                self.get_view_mut(id)?.view.fire_mouse_event(
                     MouseEvent::new(
                         ul_next::event::MouseEventType::MouseDown,
                         point.x as i32,
                         point.y as i32,
                         ul_next::event::MouseButton::Right,
                     )
-                    .unwrap(),
-                );
-            }
-            mouse::Event::ButtonReleased(mouse::Button::Right) => {
-                self.get_view_mut(id).view.fire_mouse_event(
+                    .expect("Ultralight failed to fire mouse input"),
+                ),
+            ),
+            mouse::Event::ButtonReleased(mouse::Button::Right) => Some(
+                self.get_view_mut(id)?.view.fire_mouse_event(
                     MouseEvent::new(
                         ul_next::event::MouseEventType::MouseUp,
                         point.x as i32,
                         point.y as i32,
                         ul_next::event::MouseButton::Right,
                     )
-                    .unwrap(),
-                );
-            }
+                    .expect("Ultralight failed to fire mouse input"),
+                ),
+            ),
             mouse::Event::CursorMoved { position: _ } => {
-                self.get_view_mut(id).view.fire_mouse_event(
+                self.get_view_mut(id)?.view.fire_mouse_event(
                     MouseEvent::new(
                         ul_next::event::MouseEventType::MouseMoved,
                         point.x as i32,
                         point.y as i32,
                         ul_next::event::MouseButton::None,
                     )
-                    .unwrap(),
+                    .expect("Ultralight failed to fire mouse input"),
                 );
+                Some(())
             }
             mouse::Event::WheelScrolled { delta } => self.scroll(id, delta),
-            mouse::Event::CursorLeft => {
-                self.unfocus();
-            }
-            mouse::Event::CursorEntered => {
-                self.focus();
-            }
-            _ => (),
+            mouse::Event::CursorLeft => Some(self.unfocus()),
+            mouse::Event::CursorEntered => Some(self.focus()),
+            _ => Some(()),
         }
     }
 
-    fn refresh(&mut self, id: ViewId) {
-        self.get_view_mut(id).view.reload();
+    fn refresh(&mut self, id: ViewId) -> Option<()> {
+        Some(self.get_view_mut(id)?.view.reload())
     }
 
-    fn go_forward(&mut self, id: ViewId) {
-        self.get_view_mut(id).view.go_forward();
+    fn go_forward(&mut self, id: ViewId) -> Option<()> {
+        Some(self.get_view_mut(id)?.view.go_forward())
     }
 
-    fn go_back(&mut self, id: ViewId) {
-        self.get_view_mut(id).view.go_back();
+    fn go_back(&mut self, id: ViewId) -> Option<()> {
+        Some(self.get_view_mut(id)?.view.go_back())
     }
 
-    fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta) {
+    fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta) -> Option<()> {
         let scroll_event = match delta {
             ScrollDelta::Lines { x, y } => ScrollEvent::new(
                 ul_next::event::ScrollEventType::ScrollByPixel,
@@ -364,27 +357,29 @@ impl Engine for Ultralight {
             )
             .unwrap(),
         };
-        self.get_view_mut(id).view.fire_scroll_event(scroll_event);
+        Some(self.get_view_mut(id)?.view.fire_scroll_event(scroll_event))
     }
 
     fn get_url(&self, id: ViewId) -> Option<String> {
-        self.get_view(id).view.url().ok()
+        self.get_view(id)?.view.url().ok()
     }
 
     fn get_title(&self, id: ViewId) -> Option<String> {
-        self.get_view(id).view.title().ok()
+        self.get_view(id)?.view.title().ok()
     }
 
-    fn get_view(&self, id: ViewId) -> &ImageInfo {
-        &self.get_view(id).last_frame
+    fn get_view(&self, id: ViewId) -> Option<&ImageInfo> {
+        Some(&self.get_view(id)?.last_frame)
     }
 
-    fn get_cursor(&self, id: ViewId) -> mouse::Interaction {
-        *self
-            .get_view(id)
-            .cursor
-            .read()
-            .expect("Failed to get Ultraights cursor status")
+    fn get_cursor(&self, id: ViewId) -> Option<mouse::Interaction> {
+        Some(
+            *self
+                .get_view(id)?
+                .cursor
+                .read()
+                .expect("Failed to get Ultraights cursor status"),
+        )
     }
 }
 

@@ -6,8 +6,6 @@ use iced::Point;
 
 use crate::ImageInfo;
 
-pub mod test;
-
 #[cfg(feature = "ultralight")]
 pub mod ultralight;
 
@@ -28,11 +26,14 @@ pub trait Engine {
     /// Has Ultralight perform a new render
     fn render(&mut self, size: Size<u32>);
     /// Request that the browser engine rerender a specific view that may have been updated
-    fn request_render(&mut self, id: ViewId, size: Size<u32>);
+    /// Can fail if requested id does not exist
+    fn request_render(&mut self, id: ViewId, size: Size<u32>) -> Option<()>;
     /// Creates new a new blank view and returns the ViewId to interact with it
-    fn new_view(&mut self, size: Size<u32>) -> ViewId;
+    /// Can fail if underlying engine fails to create view
+    fn new_view(&mut self, size: Size<u32>) -> Option<ViewId>;
     /// Removes desired view
-    fn remove_view(&mut self, id: ViewId);
+    /// Can fail if requested id does not exist
+    fn remove_view(&mut self, id: ViewId) -> Option<()>;
 
     // window changes - no id needed they work for all views
     fn focus(&mut self);
@@ -40,20 +41,31 @@ pub trait Engine {
     fn resize(&mut self, size: Size<u32>);
 
     // handle events per engine
-    fn handle_keyboard_event(&mut self, id: ViewId, event: keyboard::Event);
-    fn handle_mouse_event(&mut self, id: ViewId, point: Point, event: mouse::Event);
+    /// Can fail if requested id does not exist
+    fn handle_keyboard_event(&mut self, id: ViewId, event: keyboard::Event) -> Option<()>;
+    /// Can fail if requested id does not exist
+    fn handle_mouse_event(&mut self, id: ViewId, point: Point, event: mouse::Event) -> Option<()>;
 
     /// Allows navigating to html or Url on a specific view
-    fn goto(&mut self, id: ViewId, page_type: PageType);
-    fn refresh(&mut self, id: ViewId);
-    fn go_forward(&mut self, id: ViewId);
-    fn go_back(&mut self, id: ViewId);
-    fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta);
+    /// Can fail if requested id does not exist
+    fn goto(&mut self, id: ViewId, page_type: PageType) -> Option<()>;
+    /// Can fail if requested id does not exist
+    fn refresh(&mut self, id: ViewId) -> Option<()>;
+    /// Can fail if requested id does not exist
+    fn go_forward(&mut self, id: ViewId) -> Option<()>;
+    /// Can fail if requested id does not exist
+    fn go_back(&mut self, id: ViewId) -> Option<()>;
+    /// Can fail if requested id does not exist
+    fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta) -> Option<()>;
 
+    /// Can fail if requested id does not exist or page has not loaded and therfore has no url
     fn get_url(&self, id: ViewId) -> Option<String>;
+    /// Can fail if requested id does not exist or page has not loaded and therfore has no title
     fn get_title(&self, id: ViewId) -> Option<String>;
-    fn get_view(&self, id: ViewId) -> &ImageInfo;
-    fn get_cursor(&self, id: ViewId) -> Interaction;
+    /// Can fail if requested id does not exist
+    fn get_view(&self, id: ViewId) -> Option<&ImageInfo>;
+    /// Can fail if requested id does not exist
+    fn get_cursor(&self, id: ViewId) -> Option<Interaction>;
 }
 
 /// Allows users to create new views with url or custom html

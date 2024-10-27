@@ -120,7 +120,10 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 }
             }
             Action::CreateView => {
-                let id = self.engine.new_view(self.view_size);
+                let id = self
+                    .engine
+                    .new_view(self.view_size)
+                    .expect("Failed to create new view");
                 self.urls.push((id, String::new()));
                 self.titles.push((id, String::new()));
 
@@ -165,7 +168,14 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
     /// Like a normal `view()` method in iced, but takes an id of the desired view
     pub fn view(&self, id: usize) -> Element<Action> {
-        WebViewWidget::with(id, self.view_size, self.engine.get_view(id)).into()
+        WebViewWidget::with(
+            id,
+            self.view_size,
+            self.engine
+                .get_view(id)
+                .expect("Failed to get view with that id"),
+        )
+        .into()
     }
 }
 
