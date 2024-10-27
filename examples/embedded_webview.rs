@@ -36,8 +36,8 @@ struct App {
 impl App {
     fn new() -> (Self, Task<Message>) {
         let webview = WebView::new()
-            // This is what allows us go to a new url
             .on_create_view(Message::CreatedNewWebView)
+            // This is what allows us go to a new url
             .on_url_change(Message::UpdateWebviewUrl);
         (
             Self {
