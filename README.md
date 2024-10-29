@@ -10,14 +10,14 @@ A library to embed Web views in iced applications
 
 ##### `examples/embedded_webview`
 A simple example to showcase an embedded webview (uses the basic webview)
-![image](https://github.com/LegitCamper/iced_webview/blob/main/assets/embedded_webview)
+![image](https://raw.githubusercontent.com/LegitCamper/iced_webview/refs/heads/main/assets/embedded_webview.png)
 ```sh
 cargo run --example embedded_webview --features ultralight-resources
 ```
 
 ##### `examples/multi_webview`
 A more advanced example that uses the advanced webview module and has two simultaneous webviews open
-![image](https://github.com/LegitCamper/iced_webview/blob/main/assets/multi_webview)
+![image](https://raw.githubusercontent.com/LegitCamper/iced_webview/refs/heads/main/assets/multi_view.png)
 ```sh
 cargo run --example multi_webview --features ultralight-resources
 ```
