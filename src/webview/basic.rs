@@ -8,9 +8,10 @@ use iced::advanced::{
 };
 use iced::event::Status;
 use iced::keyboard;
+use iced::mouse::{self, Interaction};
 use iced::widget::image::{Handle, Image};
-use iced::{mouse, Element, Point, Size, Task};
 use iced::{theme::Theme, Event, Length, Rectangle};
+use iced::{Element, Point, Size, Task};
 use url::Url;
 
 use crate::{engines, ImageInfo, PageType, ViewId};
@@ -21,7 +22,7 @@ pub enum Action {
     ChangeView(u32),
     /// Closes current window & makes last used view the current one
     CloseCurrentView,
-    /// Closes specific view id
+    /// Closes specific view index
     CloseView(u32),
     /// Creates a new view and makes its index view + 1
     CreateView(PageType),
@@ -170,24 +171,36 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
             Action::GoBackward => {
                 self.engine.go_back(self.get_current_view_id());
+                self.engine
+                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::GoForward => {
                 self.engine.go_forward(self.get_current_view_id());
+                self.engine
+                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::GoToUrl(url) => {
                 self.engine
                     .goto(self.get_current_view_id(), PageType::Url(url.to_string()));
+                self.engine
+                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::Refresh => {
                 self.engine.refresh(self.get_current_view_id());
+                self.engine
+                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::SendKeyboardEvent(event) => {
                 self.engine
                     .handle_keyboard_event(self.get_current_view_id(), event);
+                self.engine
+                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::SendMouseEvent(point, event) => {
                 self.engine
                     .handle_mouse_event(self.get_current_view_id(), event, point);
+                self.engine
+                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::Update => {
                 self.engine.update();
@@ -209,6 +222,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             self.engine
                 .get_view(self.get_current_view_id())
                 .expect("failed to get view, because current view id does not exist"),
+            self.engine
+                .get_cursor(self.get_current_view_id())
+                .expect("current view id does not exist"),
         )
         .into()
     }
@@ -217,13 +233,15 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 struct WebViewWidget {
     bounds: Size<u32>,
     image: Image<Handle>,
+    cursor: Interaction,
 }
 
 impl WebViewWidget {
-    fn with(bounds: Size<u32>, image: &ImageInfo) -> Self {
+    fn with(bounds: Size<u32>, image: &ImageInfo, cursor: Interaction) -> Self {
         Self {
             bounds,
             image: image.as_image(),
+            cursor,
         }
     }
 }
@@ -298,6 +316,21 @@ where
             _ => (),
         }
         Status::Ignored
+    }
+
+    fn mouse_interaction(
+        &self,
+        _state: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &Renderer,
+    ) -> mouse::Interaction {
+        if cursor.is_over(layout.bounds()) {
+            self.cursor
+        } else {
+            mouse::Interaction::Idle
+        }
     }
 }
 

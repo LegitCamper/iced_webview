@@ -8,9 +8,10 @@ use iced::advanced::{
 };
 use iced::event::Status;
 use iced::keyboard;
+use iced::mouse::{self, Interaction};
 use iced::widget::image::{Handle, Image};
-use iced::{mouse, Element, Point, Size, Task};
 use iced::{theme::Theme, Event, Length, Rectangle};
+use iced::{Element, Point, Size, Task};
 use url::Url;
 
 use crate::{engines, ImageInfo, PageType, ViewId};
@@ -136,21 +137,27 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
             Action::GoBackward(id) => {
                 self.engine.go_back(id);
+                self.engine.request_render(id, self.view_size);
             }
             Action::GoForward(id) => {
                 self.engine.go_forward(id);
+                self.engine.request_render(id, self.view_size);
             }
             Action::GoToUrl(id, url) => {
                 self.engine.goto(id, PageType::Url(url.to_string()));
+                self.engine.request_render(id, self.view_size);
             }
             Action::Refresh(id) => {
                 self.engine.refresh(id);
+                self.engine.request_render(id, self.view_size);
             }
             Action::SendKeyboardEvent(id, event) => {
                 self.engine.handle_keyboard_event(id, event);
+                self.engine.request_render(id, self.view_size);
             }
             Action::SendMouseEvent(id, point, event) => {
                 self.engine.handle_mouse_event(id, event, point);
+                self.engine.request_render(id, self.view_size);
             }
             Action::Update => {
                 self.engine.update();
@@ -177,6 +184,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             self.engine
                 .get_view(id)
                 .expect("Failed to get view with that id"),
+            self.engine.get_cursor(id).expect("View id does not exist"),
         )
         .into()
     }
@@ -186,14 +194,16 @@ struct WebViewWidget {
     id: ViewId,
     bounds: Size<u32>,
     image: Image<Handle>,
+    cursor: Interaction,
 }
 
 impl WebViewWidget {
-    fn with(id: ViewId, bounds: Size<u32>, image: &ImageInfo) -> Self {
+    fn with(id: ViewId, bounds: Size<u32>, image: &ImageInfo, cursor: Interaction) -> Self {
         Self {
             id,
             bounds,
             image: image.as_image(),
+            cursor,
         }
     }
 }
@@ -268,6 +278,21 @@ where
             _ => (),
         }
         Status::Ignored
+    }
+
+    fn mouse_interaction(
+        &self,
+        _state: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &Renderer,
+    ) -> mouse::Interaction {
+        if cursor.is_over(layout.bounds()) {
+            self.cursor
+        } else {
+            mouse::Interaction::Idle
+        }
     }
 }
 

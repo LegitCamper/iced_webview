@@ -23,6 +23,7 @@ use super::{Engine, PageType, PixelFormat, ViewId};
 struct UlClipboard {
     ctx: ClipboardContext,
 }
+
 impl platform::Clipboard for UlClipboard {
     fn clear(&mut self) {}
 
