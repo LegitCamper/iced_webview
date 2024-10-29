@@ -58,7 +58,24 @@ impl Default for Ultralight {
     fn default() -> Self {
         let config = Config::start().build().expect("Failed to start Ultralight");
         platform::enable_platform_fontloader();
-        platform::enable_platform_filesystem(".").expect("Failed to access ultralight filesystem");
+        let resources_path = match std::env::var("CARGO_ULTRALIGHT_RESOURCES") {
+            Ok(platform_path) => platform_path,
+            Err(_) => {
+                // env not set - check if its been symlinked by build.rs
+                match std::path::Path::new("./resources").exists() {
+                    true => "./resources".to_string(),
+                    false => panic!("ULTRALIGHT_RESOURCES_DIR was not set and ultralight-resources feature was not enabled"),
+                }
+            }
+        };
+        assert!(std::path::Path::new(&resources_path)
+            .join("cacert.pem")
+            .exists());
+        assert!(std::path::Path::new(&resources_path)
+            .join("icudt67l.dat")
+            .exists());
+        platform::enable_platform_filesystem(resources_path)
+            .expect("Failed to access ultralight filesystem");
         platform::set_clipboard(UlClipboard {
             ctx: ClipboardContext::new().expect("Failed to get ownership of clipboard"),
         });

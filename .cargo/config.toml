@@ -1,0 +1,5 @@
+# if --features ultralight-resources is not set,
+# then you must configure the resources path in you .cargo/config.toml like this
+# the resources directory can be found at https://ultralig.ht/download/
+[env]
+ULTRALIGHT_RESOURCES_DIR = "."
