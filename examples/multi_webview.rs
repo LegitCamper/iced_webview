@@ -1,7 +1,7 @@
 use iced::{
     time,
-    widget::{row, text},
-    Element, Subscription, Task,
+    widget::{column, container, row, text},
+    Element, Length, Subscription, Task,
 };
 use iced_webview::{
     advanced::{Action, WebView},
@@ -70,8 +70,16 @@ impl App {
             return text("loading").into();
         };
         row![
-            self.webview.view(view1).map(Message::WebView),
-            self.webview.view(view2).map(Message::WebView)
+            container(column![
+                text("View 1 of iced docs"),
+                container(self.webview.view(view1).map(Message::WebView)).height(Length::Fill),
+            ])
+            .padding(5),
+            container(column![
+                text("View 2 of the iced_webview repo"),
+                container(self.webview.view(view2).map(Message::WebView)).height(Length::Fill),
+            ])
+            .padding(5),
         ]
         .into()
     }
