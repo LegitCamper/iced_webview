@@ -33,8 +33,8 @@ pub struct WebView<Engine, Message>
 where
     Engine: engines::Engine,
 {
-    pub engine: Engine,
-    pub view_size: Size<u32>,
+    engine: Engine,
+    view_size: Size<u32>,
     on_close_view: Option<Box<dyn Fn(ViewId) -> Message>>,
     on_create_view: Option<Box<dyn Fn(ViewId) -> Message>>,
     on_url_change: Option<Box<dyn Fn(ViewId, String) -> Message>>,

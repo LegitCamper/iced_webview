@@ -3,9 +3,8 @@ use iced::{
     widget::{button, column, container, row, text},
     Element, Length, Subscription, Task,
 };
-use iced_webview::{Action, Ultralight, WebView};
+use iced_webview::{Action, PageType, Ultralight, WebView};
 use std::time::Duration;
-use url::Url;
 
 static URL: &'static str = "https://docs.rs/iced/latest/iced/index.html";
 
@@ -19,8 +18,8 @@ fn main() -> iced::Result {
 enum Message {
     WebView(Action),
     ToggleWebviewVisibility,
-    UpdateWebviewUrl(String),
-    CreatedNewWebView,
+    UrlChanged(String),
+    NewWebViewCreated,
     CreateWebview,
     SwitchWebview,
 }
@@ -36,9 +35,8 @@ struct App {
 impl App {
     fn new() -> (Self, Task<Message>) {
         let webview = WebView::new()
-            .on_create_view(Message::CreatedNewWebView)
-            // This is what allows us go to a new url
-            .on_url_change(Message::UpdateWebviewUrl);
+            .on_create_view(Message::NewWebViewCreated)
+            .on_url_change(Message::UrlChanged);
         (
             Self {
                 webview,
@@ -54,31 +52,30 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::CreatedNewWebView => {
-                self.current_view = Some(0);
-                // Now that we know the webview has been created lets navigate to URL
-                let url = Url::parse(URL).unwrap();
-                Task::chain(
-                    Task::done(Action::ChangeView(0)).map(Message::WebView),
-                    Task::done(Action::GoToUrl(url)).map(Message::WebView),
-                )
+            Message::NewWebViewCreated => {
+                if self.current_view == None {
+                    self.current_view = Some(0);
+                    // if its the first tab change to it, after that require switching manually
+                    return Task::done(Action::ChangeView(0)).map(Message::WebView);
+                }
+                self.num_views += 1;
+                Task::none()
             }
             Message::WebView(msg) => self.webview.update(msg),
             Message::ToggleWebviewVisibility => {
                 self.show_webview = !self.show_webview;
                 Task::none()
             }
-            Message::UpdateWebviewUrl(new_url) => {
+            Message::UrlChanged(new_url) => {
                 self.webview_url = Some(new_url);
                 Task::none()
             }
-            Message::CreateWebview => {
-                self.num_views += 1;
-                self.webview.update(Action::CreateView)
-            }
+            Message::CreateWebview => self
+                .webview
+                .update(Action::CreateView(PageType::Url(URL.to_string()))),
             Message::SwitchWebview => {
                 if let Some(current_view) = self.current_view.as_mut() {
-                    if *current_view + 1 >= self.num_views {
+                    if *current_view + 1 > self.num_views {
                         *current_view = 0;
                     } else {
                         *current_view += 1;

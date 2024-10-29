@@ -69,7 +69,7 @@ pub trait Engine {
 }
 
 /// Allows users to create new views with url or custom html
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub enum PageType {
     Url(String),
     Html(String),
