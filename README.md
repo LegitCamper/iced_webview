@@ -26,9 +26,9 @@ cargo run --example multi_webview --features ultralight-resources
 
 Ultralight requires runtime resources. (cacert.pem, icudt67l.dat)
 
-> You can either set the path to them with the `ULTRALIGHT_RESOURCES_DIR` env. The resouces direcory can be downloaded from [Ultralight SDK]
+> You can either set the path to them with the `ULTRALIGHT_RESOURCES_DIR` env. This varible can also be set in `.cargo/config.toml`. The resouces direcory can be downloaded from [Ultralight SDK]
 
-> Or Rust will do its best symlink the directory with `--features --ultralight-resources`. If this fails use `ULTRALIGHT_RESOURCES_DIR`
+> Or Rust will do its best symlink the directory with `--features ultralight-resources`. If this fails please use `ULTRALIGHT_RESOURCES_DIR`
 
 ## Deployment
 
