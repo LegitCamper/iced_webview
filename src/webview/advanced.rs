@@ -186,7 +186,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
     /// Like a normal `view()` method in iced, but takes an id of the desired view
     pub fn view(&self, id: usize) -> Element<Action> {
-        WebViewWidget::with(
+        WebViewWidget::new(
             id,
             self.view_size,
             self.engine
@@ -208,7 +208,7 @@ struct WebViewWidget {
 }
 
 impl WebViewWidget {
-    fn with(id: ViewId, bounds: Size<u32>, image: &ImageInfo, cursor: Interaction) -> Self {
+    fn new(id: ViewId, bounds: Size<u32>, image: &ImageInfo, cursor: Interaction) -> Self {
         Self {
             id,
             bounds,

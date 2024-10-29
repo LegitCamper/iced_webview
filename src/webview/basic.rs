@@ -225,7 +225,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
     /// Returns webview widget for the current view
     pub fn view(&self) -> Element<Action> {
-        WebViewWidget::with(
+        WebViewWidget::new(
             self.view_size,
             self.engine
                 .get_view(self.get_current_view_id())
@@ -245,7 +245,7 @@ struct WebViewWidget {
 }
 
 impl WebViewWidget {
-    fn with(bounds: Size<u32>, image: &ImageInfo, cursor: Interaction) -> Self {
+    fn new(bounds: Size<u32>, image: &ImageInfo, cursor: Interaction) -> Self {
         Self {
             bounds,
             image: image.as_image(),
