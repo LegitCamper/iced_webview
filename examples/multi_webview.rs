@@ -5,10 +5,9 @@ use iced::{
 };
 use iced_webview::{
     advanced::{Action, WebView},
-    Ultralight, ViewId,
+    PageType, Ultralight, ViewId,
 };
 use std::time::Duration;
-use url::Url;
 
 static URL1: &'static str = "https://docs.rs/iced/latest/iced/index.html";
 static URL2: &'static str = "https://github.com/LegitCamper/iced_webview";
@@ -27,7 +26,7 @@ enum Message {
 
 struct App {
     webview: WebView<Ultralight, Message>,
-    web_views: (Option<ViewId>, Option<ViewId>),
+    webviews: (Option<ViewId>, Option<ViewId>),
 }
 
 impl App {
@@ -36,11 +35,13 @@ impl App {
         (
             Self {
                 webview,
-                web_views: (None, None),
+                webviews: (None, None),
             },
             Task::chain(
-                Task::done(Action::CreateView).map(Message::WebView),
-                Task::done(Action::CreateView).map(Message::WebView),
+                Task::done(Action::CreateView(PageType::Url(URL1.to_string())))
+                    .map(Message::WebView),
+                Task::done(Action::CreateView(PageType::Url(URL2.to_string())))
+                    .map(Message::WebView),
             ),
         )
     }
@@ -49,24 +50,21 @@ impl App {
         match message {
             Message::WebView(msg) => self.webview.update(msg),
             Message::CreatedNewWebView(view_id) => {
-                if self.web_views.0 == None {
-                    self.web_views.0 = Some(view_id);
-                    Task::done(Action::GoToUrl(view_id, Url::parse(URL1).unwrap()))
-                        .map(Message::WebView)
-                } else {
-                    self.web_views.1 = Some(view_id);
-                    Task::done(Action::GoToUrl(view_id, Url::parse(URL2).unwrap()))
-                        .map(Message::WebView)
+                if self.webviews.0 == None {
+                    self.webviews.0 = Some(view_id);
+                } else if self.webviews.1 == None {
+                    self.webviews.1 = Some(view_id);
                 }
+                Task::none()
             }
         }
     }
 
     fn view(&self) -> Element<Message> {
-        let Some(view1) = self.web_views.0 else {
+        let Some(view1) = self.webviews.0 else {
             return text("loading").into();
         };
-        let Some(view2) = self.web_views.1 else {
+        let Some(view2) = self.webviews.1 else {
             return text("loading").into();
         };
         row![

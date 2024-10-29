@@ -18,7 +18,7 @@ use crate::{engines, ImageInfo, PageType, ViewId};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     CloseView(ViewId),
-    CreateView,
+    CreateView(PageType),
     GoBackward(ViewId),
     GoForward(ViewId),
     GoToUrl(ViewId, Url),
@@ -119,13 +119,16 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                     tasks.push(Task::done((on_view_close)(id)))
                 }
             }
-            Action::CreateView => {
+            Action::CreateView(page_type) => {
                 let id = self
                     .engine
                     .new_view(self.view_size)
                     .expect("Failed to create new view");
                 self.urls.push((id, String::new()));
                 self.titles.push((id, String::new()));
+                self.engine
+                    .goto(id, page_type)
+                    .expect("Failed to page type");
 
                 if let Some(on_view_create) = &self.on_create_view {
                     tasks.push(Task::done((on_view_create)(id)))
