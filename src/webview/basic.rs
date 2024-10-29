@@ -71,8 +71,10 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     }
 }
 
-impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    pub fn new() -> Self {
+impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> Default
+    for WebView<Engine, Message>
+{
+    fn default() -> Self {
         WebView {
             engine: Engine::default(),
             view_size: Size {
@@ -88,6 +90,12 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             on_title_change: None,
             title: String::new(),
         }
+    }
+}
+
+impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn on_create_view(mut self, on_create_view: Message) -> Self {
@@ -117,7 +125,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     pub fn update(&mut self, action: Action) -> Task<Message> {
         let mut tasks = Vec::new();
 
-        if let Some(_) = self.current_view_index {
+        if self.current_view_index.is_some() {
             if let Some(on_url_change) = &self.on_url_change {
                 if let Some(url) = self.engine.get_url(self.get_current_view_id()) {
                     if self.url != url {

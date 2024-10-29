@@ -44,8 +44,10 @@ where
     titles: Vec<(ViewId, String)>,
 }
 
-impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
-    pub fn new() -> Self {
+impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> Default
+    for WebView<Engine, Message>
+{
+    fn default() -> Self {
         WebView {
             engine: Engine::default(),
             view_size: Size::new(1920, 1080),
@@ -56,6 +58,12 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             on_title_change: None,
             titles: Vec::new(),
         }
+    }
+}
+
+impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn on_create_view(mut self, on_create_view: impl Fn(usize) -> Message + 'static) -> Self {
