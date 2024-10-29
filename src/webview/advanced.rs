@@ -192,7 +192,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             self.engine
                 .get_view(id)
                 .expect("Failed to get view with that id"),
-            self.engine.get_cursor(id).expect("View id does not exist"),
+            self.engine
+                .get_cursor(id)
+                .expect("Failed to get view with that id"),
         )
         .into()
     }

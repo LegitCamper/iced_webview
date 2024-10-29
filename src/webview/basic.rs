@@ -232,7 +232,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 .expect("failed to get view, because current view id does not exist"),
             self.engine
                 .get_cursor(self.get_current_view_id())
-                .expect("current view id does not exist"),
+                .expect("failed to get view, because current view id does not exist"),
         )
         .into()
     }
