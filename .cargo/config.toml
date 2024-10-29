@@ -3,3 +3,5 @@
 # the resources directory can be found at https://ultralig.ht/download/
 [env]
 ULTRALIGHT_RESOURCES_DIR = "."
+# ex. 
+# ULTRALIGHT_RESOURCES_DIR = "/home/user/ultralight_resources/resources"

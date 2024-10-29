@@ -4,7 +4,10 @@ use iced::mouse::{self, ScrollDelta};
 use iced::{Point, Size};
 use rand::Rng;
 use smol_str::SmolStr;
+use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
+use std::{env::var, path::Path};
 use ul_next::{
     config::Config,
     event::{self, KeyEventCreationInfo, MouseEvent, ScrollEvent},
@@ -58,23 +61,24 @@ impl Default for Ultralight {
     fn default() -> Self {
         let config = Config::start().build().expect("Failed to start Ultralight");
         platform::enable_platform_fontloader();
-        let resources_path = match std::env::var("CARGO_ULTRALIGHT_RESOURCES") {
-            Ok(platform_path) => platform_path,
+        let env = var("CARGO_ULTRALIGHT_RESOURCES");
+        let resources_path: PathBuf = match env {
+            Ok(env) => PathBuf::from_str(&env)
+                .expect("Failed to get path from ultralight resources enviroment varible"),
             Err(_) => {
                 // env not set - check if its been symlinked by build.rs
-                match std::path::Path::new("./resources").exists() {
-                    true => "./resources".to_string(),
+                match Path::new("./resources").exists() {
+                    true => Path::new("./resources").to_owned(),
                     false => panic!("ULTRALIGHT_RESOURCES_DIR was not set and ultralight-resources feature was not enabled"),
                 }
             }
         };
-        assert!(std::path::Path::new(&resources_path)
-            .join("cacert.pem")
-            .exists());
-        assert!(std::path::Path::new(&resources_path)
-            .join("icudt67l.dat")
-            .exists());
-        platform::enable_platform_filesystem(resources_path)
+        assert!(Path::new(&resources_path).join("cacert.pem").exists());
+        assert!(Path::new(&resources_path).join("icudt67l.dat").exists());
+        let resources_dir = resources_path
+            .parent()
+            .expect("resources path needs to point to the resources directory"); // leaves resources directory
+        platform::enable_platform_filesystem(resources_dir)
             .expect("Failed to access ultralight filesystem");
         platform::set_clipboard(UlClipboard {
             ctx: ClipboardContext::new().expect("Failed to get ownership of clipboard"),
