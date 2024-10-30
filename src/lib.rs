@@ -1,15 +1,18 @@
 pub use html::root::Html;
 use iced::widget::image;
-pub use slotmap::DefaultKey as ViewId;
 
 pub mod engines;
-pub use engines::{Engine, PageType, PixelFormat, View};
+pub use engines::{Engine, PageType, PixelFormat, ViewId};
 
-pub mod webview;
-pub use webview::WebView;
+mod webview;
+pub use basic::{Action, WebView};
+pub use webview::{advanced, basic}; // pub these since its the default/reccommended method
 
 #[cfg(feature = "ultralight")]
 pub use engines::ultralight::Ultralight;
+
+#[cfg(feature = "gosub")]
+pub use engines::gosub::GoSub;
 
 /// Image details for passing the view around
 #[derive(Clone, Debug, PartialEq)]

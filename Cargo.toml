@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.81.0"
 description = "iced webview library"
 repository = "https://github.com/LegitCamper/iced_webview/"
+readme = "README.md"
 
 [profile.dev]
 incremental = true
@@ -14,9 +15,11 @@ lto = "thin"
 [features]
 # default = ["ultralight"]
 default = ["gosub"]
+
 ultralight = ["dep:ul-next", "dep:smol_str", "dep:clipboard-rs", "dep:slotmap"]
 # automatically downloads ultralight resources
 ultralight-resources = []
+
 gosub = [
   "dep:gosub_shared",
   "dep:gosub_useragent",

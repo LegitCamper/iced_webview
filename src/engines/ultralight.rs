@@ -2,9 +2,12 @@ use clipboard_rs::{Clipboard, ClipboardContext};
 use iced::keyboard::{self};
 use iced::mouse::{self, ScrollDelta};
 use iced::{Point, Size};
-use slotmap::{DefaultKey, SlotMap};
+use rand::Rng;
 use smol_str::SmolStr;
+use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
+use std::{env::var, path::Path};
 use ul_next::{
     config::Config,
     event::{self, KeyEventCreationInfo, MouseEvent, ScrollEvent},
@@ -15,13 +18,14 @@ use ul_next::{
     window::Cursor,
     Surface,
 };
-use url::Url;
 
-use super::{Engine, PageType, PixelFormat};
+use super::{Engine, EngineResult, PageType, PixelFormat, ViewId};
+use crate::ImageInfo;
 
 struct UlClipboard {
     ctx: ClipboardContext,
 }
+
 impl platform::Clipboard for UlClipboard {
     fn clear(&mut self) {}
 
@@ -36,32 +40,45 @@ impl platform::Clipboard for UlClipboard {
     }
 }
 
-struct View {
+/// Holds Ultralight View info like surfaces for rendering and urls & titles
+pub struct View {
+    id: ViewId,
     surface: Surface,
     view: view::View,
     cursor: Arc<RwLock<mouse::Interaction>>,
+    last_frame: ImageInfo,
 }
 
-impl Into<super::View> for &View {
-    fn into(self) -> super::View {
-        super::View {
-            title: self.view.title().unwrap(),
-            url: self.view.url().unwrap(),
-        }
-    }
-}
-
+/// Implementation of the Ultralight browsing engine for iced_webivew
 pub struct Ultralight {
     renderer: Renderer,
     view_config: view::ViewConfig,
-    views: SlotMap<DefaultKey, View>,
+    views: Vec<View>,
 }
 
 impl Default for Ultralight {
     fn default() -> Self {
         let config = Config::start().build().expect("Failed to start Ultralight");
         platform::enable_platform_fontloader();
-        platform::enable_platform_filesystem(".").expect("Failed to access ultralight filesystem");
+        let env = var("CARGO_ULTRALIGHT_RESOURCES");
+        let resources_path: PathBuf = match env {
+            Ok(env) => PathBuf::from_str(&env)
+                .expect("Failed to get path from ultralight resources enviroment varible"),
+            Err(_) => {
+                // env not set - check if its been symlinked by build.rs
+                match Path::new("./resources").exists() {
+                    true => Path::new("./resources").to_owned(),
+                    false => panic!("ULTRALIGHT_RESOURCES_DIR was not set and ultralight-resources feature was not enabled"),
+                }
+            }
+        };
+        assert!(Path::new(&resources_path).join("cacert.pem").exists());
+        assert!(Path::new(&resources_path).join("icudt67l.dat").exists());
+        let resources_dir = resources_path
+            .parent()
+            .expect("resources path needs to point to the resources directory"); // leaves resources directory
+        platform::enable_platform_filesystem(resources_dir)
+            .expect("Failed to access ultralight filesystem");
         platform::set_clipboard(UlClipboard {
             ctx: ClipboardContext::new().expect("Failed to get ownership of clipboard"),
         });
@@ -77,149 +94,84 @@ impl Default for Ultralight {
         Self {
             renderer,
             view_config,
-            views: SlotMap::new(),
+            views: Vec::new(),
         }
     }
 }
 
 impl Ultralight {
+    /// Creates a new Ultralight adapter
     pub fn new(font: &str, scale: f64) -> Self {
-        accelerated.then(|| panic!("Ultralight acceleration is currently unsupported"));
         Self {
             view_config: view::ViewConfig::start()
                 .initial_device_scale(scale)
                 .font_family_standard(font)
+                // iced_webview does not currently support acceleration
                 .is_accelerated(false)
                 .build()
                 .unwrap(),
             ..Default::default()
         }
     }
+
+    fn get_view(&self, id: ViewId) -> Option<&View> {
+        self.views.iter().find(|&view| view.id == id)
+    }
+
+    fn get_view_mut(&mut self, id: ViewId) -> Option<&mut View> {
+        self.views.iter_mut().find(|view| view.id == id)
+    }
 }
 
 impl Engine for Ultralight {
-    fn do_work(&self) {
-        self.renderer.update()
+    fn update(&mut self) {
+        self.renderer.update();
     }
 
-    fn force_render(&self, id: DefaultKey) {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .set_needs_paint(true)
-    }
-
-    fn need_render(&self, id: DefaultKey) -> bool {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .needs_paint()
-    }
-
-    fn render(&mut self, _id: DefaultKey) {
+    fn render(&mut self, size: Size<u32>) {
         self.renderer.render();
-    }
 
-    fn resize(&mut self, size: Size<u32>) {
-        self.views.iter().for_each(|(_, view)| {
-            view.view.resize(size.width, size.height);
-            view.surface.resize(size.width, size.height);
-        })
-    }
-
-    fn pixel_buffer(&mut self, id: DefaultKey) -> Option<(PixelFormat, Vec<u8>)> {
-        self.render(id);
-
-        if let Some(pixel_data) = self
-            .views
-            .get_mut(id)
-            .expect("Tab does not exist")
-            .surface
-            .lock_pixels()
-        {
-            let mut vec = Vec::new();
-            vec.extend_from_slice(&pixel_data);
-            Some((PixelFormat::Bgra, vec))
-        } else {
-            None
+        // for each view save new view
+        // TODO: could probably be optimized for performace
+        for view in self.views.iter_mut() {
+            if let Some(pixels) = view.surface.lock_pixels() {
+                view.last_frame =
+                    ImageInfo::new(pixels.to_vec(), PixelFormat::Bgra, size.width, size.height);
+            }
         }
     }
 
-    fn get_cursor(&self, id: DefaultKey) -> mouse::Interaction {
-        *self
-            .views
-            .get(id)
-            .expect("Tab does not exist")
-            .cursor
-            .read()
-            .unwrap()
+    fn request_render(&mut self, id: ViewId, size: Size<u32>) -> Option<()> {
+        self.get_view_mut(id)?.view.set_needs_paint(true);
+
+        for view in self.views.iter_mut().filter(|view| view.id == id) {
+            if let Some(pixels) = view.surface.lock_pixels() {
+                view.last_frame =
+                    ImageInfo::new(pixels.to_vec(), PixelFormat::Bgra, size.width, size.height);
+                return Some(());
+            }
+        }
+        None
     }
 
-    fn goto_html(&self, id: DefaultKey, html: &str) {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .load_html(html)
-            .unwrap();
-    }
+    fn new_view(&mut self, size: Size<u32>) -> Option<ViewId> {
+        let id = rand::thread_rng().gen();
 
-    fn goto_url(&self, id: DefaultKey, url: &Url) {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .load_url(url.as_ref())
-            .unwrap();
-    }
-
-    fn has_loaded(&self, id: DefaultKey) -> Option<bool> {
-        Some(
-            !self
-                .views
-                .get(id)
-                .expect("Tab does not exist")
-                .view
-                .is_loading(),
-        )
-    }
-
-    fn get_views(&self) -> Vec<super::View> {
-        self.views
-            .iter()
-            .map(|(_, view)| Into::<super::View>::into(view))
-            .collect()
-    }
-
-    fn remove_view(&mut self, id: DefaultKey) {
-        self.views.remove(id).expect("Failed to remove view");
-    }
-
-    fn get_view(&self, id: DefaultKey) -> super::View {
-        Into::<super::View>::into(self.views.get(id).expect("Tab does not exist"))
-    }
-
-    fn new_view(&mut self, page_type: PageType, size: Size<u32>) -> DefaultKey {
         let view = self
             .renderer
-            .create_view(size.width, size.height, &self.view_config, None)
-            .unwrap();
+            // TODO: debug why new views are slanted unless do + 10/ - 10
+            // maybe causes the fuzzyness
+            .create_view(size.width + 10, size.height - 10, &self.view_config, None)?;
 
-        let surface = view.surface().unwrap();
-        match page_type {
-            PageType::Url(url) => view.load_url(url).expect("Failed to load url"),
-            PageType::Html(html) => view.load_html(html).expect("Failed to load custom html"),
-        }
+        let surface = view.surface()?;
 
-        // RGBA
+        // RGBA - ensure it has the right diamentions
         debug_assert!(surface.row_bytes() / size.width == 4);
 
         let cursor = Arc::new(RwLock::new(mouse::Interaction::Idle));
         let cb_cursor = cursor.clone();
         view.set_change_cursor_callback(move |_view, cursor_update| {
-            *cb_cursor.write().unwrap() = match cursor_update {
+            *cb_cursor.write().expect("Failed to write cursor status") = match cursor_update {
                 Cursor::None => mouse::Interaction::Idle,
                 Cursor::Pointer => mouse::Interaction::Idle,
                 Cursor::Hand => mouse::Interaction::Pointer,
@@ -238,72 +190,51 @@ impl Engine for Ultralight {
             };
         });
 
-        self.views.insert(View {
+        let view = View {
+            id,
             surface,
             view,
             cursor,
+            last_frame: ImageInfo::default(),
+        };
+        self.views.push(view);
+        Some(id)
+    }
+
+    fn remove_view(&mut self, id: ViewId) -> Option<()> {
+        let views = self.views.len();
+        self.views.retain(|view| view.id != id);
+        if self.views.len() == views {
+            None
+        } else {
+            Some(())
+        }
+    }
+
+    fn goto(&mut self, id: ViewId, page_type: PageType) -> Option<()> {
+        match page_type {
+            PageType::Url(url) => self.get_view_mut(id)?.view.load_url(&url).ok()?,
+            PageType::Html(html) => self.get_view_mut(id)?.view.load_html(&html).ok()?,
+        }
+        Some(())
+    }
+
+    fn focus(&mut self) {
+        self.views.iter().for_each(|view| view.view.focus());
+    }
+
+    fn unfocus(&self) {
+        self.views.iter().for_each(|view| view.view.unfocus());
+    }
+
+    fn resize(&mut self, size: Size<u32>) {
+        self.views.iter().for_each(|view| {
+            view.view.resize(size.width, size.height);
+            view.surface.resize(size.width, size.height);
         })
     }
 
-    fn refresh(&self, id: DefaultKey) {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .reload();
-    }
-
-    fn go_forward(&self, id: DefaultKey) {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .go_forward();
-    }
-
-    fn go_back(&self, id: DefaultKey) {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .go_back();
-    }
-
-    fn focus(&self, id: DefaultKey) {
-        self.views.get(id).expect("Tab does not exist").view.focus();
-    }
-
-    fn unfocus(&self, id: DefaultKey) {
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .unfocus();
-    }
-
-    fn scroll(&self, id: DefaultKey, delta: ScrollDelta) {
-        let scroll_event = match delta {
-            ScrollDelta::Lines { x, y } => ScrollEvent::new(
-                ul_next::event::ScrollEventType::ScrollByPixel,
-                x as i32 * 100,
-                y as i32 * 100,
-            )
-            .unwrap(),
-            ScrollDelta::Pixels { x, y } => ScrollEvent::new(
-                ul_next::event::ScrollEventType::ScrollByPixel,
-                x as i32,
-                y as i32,
-            )
-            .unwrap(),
-        };
-        self.views
-            .get(id)
-            .expect("Tab does not exist")
-            .view
-            .fire_scroll_event(scroll_event);
-    }
-
-    fn handle_keyboard_event(&self, id: DefaultKey, event: keyboard::Event) {
+    fn handle_keyboard_event(&mut self, id: ViewId, event: keyboard::Event) -> Option<()> {
         let key_event = match event {
             keyboard::Event::KeyPressed {
                 key,
@@ -338,105 +269,164 @@ impl Engine for Ultralight {
         };
 
         if let Some(key_event) = key_event {
-            self.views
-                .get(id)
-                .expect("Tab does not exist")
-                .view
-                .fire_key_event(key_event);
+            self.get_view_mut(id)?.view.fire_key_event(key_event);
         }
+        Some(())
     }
 
-    fn handle_mouse_event(&mut self, id: DefaultKey, point: Point, event: mouse::Event) {
+    fn handle_mouse_event(&mut self, id: ViewId, point: Point, event: mouse::Event) -> Option<()> {
         match event {
-            mouse::Event::ButtonReleased(mouse::Button::Forward) => {
-                self.go_forward(id);
-            }
-            mouse::Event::ButtonReleased(mouse::Button::Back) => {
-                self.go_back(id);
-            }
+            mouse::Event::ButtonReleased(mouse::Button::Forward) => self.go_forward(id),
+            mouse::Event::ButtonReleased(mouse::Button::Back) => self.go_back(id),
             mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                self.views
-                    .get(id)
-                    .expect("Tab does not exist")
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseDown,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Left,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id)?.view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseDown,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Left,
+                    )
+                    .expect("Ultralight failed to fire mouse input"),
+                );
+                Some(())
             }
             mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                self.views
-                    .get(id)
-                    .expect("Tab does not exist")
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseUp,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Left,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id)?.view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseUp,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Left,
+                    )
+                    .expect("Ultralight failed to fire mouse input"),
+                );
+                Some(())
             }
             mouse::Event::ButtonPressed(mouse::Button::Right) => {
-                self.views
-                    .get(id)
-                    .expect("Tab does not exist")
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseDown,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Right,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id)?.view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseDown,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Right,
+                    )
+                    .expect("Ultralight failed to fire mouse input"),
+                );
+                Some(())
             }
             mouse::Event::ButtonReleased(mouse::Button::Right) => {
-                self.views
-                    .get(id)
-                    .expect("Tab does not exist")
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseUp,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::Right,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id)?.view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseUp,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::Right,
+                    )
+                    .expect("Ultralight failed to fire mouse input"),
+                );
+                Some(())
             }
             mouse::Event::CursorMoved { position: _ } => {
-                self.views
-                    .get(id)
-                    .expect("Tab does not exist")
-                    .view
-                    .fire_mouse_event(
-                        MouseEvent::new(
-                            ul_next::event::MouseEventType::MouseMoved,
-                            point.x as i32,
-                            point.y as i32,
-                            ul_next::event::MouseButton::None,
-                        )
-                        .unwrap(),
-                    );
+                self.get_view_mut(id)?.view.fire_mouse_event(
+                    MouseEvent::new(
+                        ul_next::event::MouseEventType::MouseMoved,
+                        point.x as i32,
+                        point.y as i32,
+                        ul_next::event::MouseButton::None,
+                    )
+                    .expect("Ultralight failed to fire mouse input"),
+                );
+                Some(())
             }
             mouse::Event::WheelScrolled { delta } => self.scroll(id, delta),
             mouse::Event::CursorLeft => {
-                self.unfocus(id);
+                self.unfocus();
+                Some(())
             }
             mouse::Event::CursorEntered => {
-                self.focus(id);
+                self.focus();
+                Some(())
             }
-            _ => (),
+            _ => Some(()),
+        }
+    }
+
+    fn refresh(&mut self, id: ViewId) -> Option<()> {
+        self.get_view_mut(id)?.view.reload();
+        Some(())
+    }
+
+    fn go_forward(&mut self, id: ViewId) -> Option<()> {
+        self.get_view_mut(id)?.view.go_forward();
+        Some(())
+    }
+
+    fn go_back(&mut self, id: ViewId) -> Option<()> {
+        self.get_view_mut(id)?.view.go_back();
+        Some(())
+    }
+
+    fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta) -> Option<()> {
+        let scroll_event = match delta {
+            ScrollDelta::Lines { x, y } => ScrollEvent::new(
+                ul_next::event::ScrollEventType::ScrollByPixel,
+                x as i32 * 100,
+                y as i32 * 100,
+            )
+            .unwrap(),
+            ScrollDelta::Pixels { x, y } => ScrollEvent::new(
+                ul_next::event::ScrollEventType::ScrollByPixel,
+                x as i32,
+                y as i32,
+            )
+            .unwrap(),
+        };
+        self.get_view_mut(id)?.view.fire_scroll_event(scroll_event);
+        Some(())
+    }
+
+    fn get_url(&self, id: ViewId) -> EngineResult<String> {
+        if let Some(view) = self.get_view(id) {
+            match view.view.url() {
+                Ok(url) => EngineResult::Success(url),
+                Err(_) => EngineResult::NotLoaded,
+            }
+        } else {
+            EngineResult::IdDoesNotExist
+        }
+    }
+
+    fn get_title(&self, id: ViewId) -> EngineResult<String> {
+        if let Some(view) = self.get_view(id) {
+            match view.view.title() {
+                Ok(title) => EngineResult::Success(title),
+                Err(_) => EngineResult::NotLoaded,
+            }
+        } else {
+            EngineResult::IdDoesNotExist
+        }
+    }
+
+    fn get_cursor(&self, id: ViewId) -> EngineResult<mouse::Interaction> {
+        if let Some(view) = self.get_view(id) {
+            match view.cursor.read() {
+                Ok(cursor) => EngineResult::Success(*cursor),
+                Err(_) => EngineResult::NotLoaded,
+            }
+        } else {
+            EngineResult::IdDoesNotExist
+        }
+    }
+
+    fn get_view(&self, id: ViewId) -> EngineResult<&ImageInfo> {
+        if let Some(view) = self.get_view(id) {
+            if self.get_view(id).unwrap().view.is_loading() {
+                EngineResult::NotLoaded
+            } else {
+                EngineResult::Success(&view.last_frame)
+            }
+        } else {
+            EngineResult::IdDoesNotExist
         }
     }
 }

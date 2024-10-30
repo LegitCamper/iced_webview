@@ -7,6 +7,8 @@ use std::path::Path;
 
 fn main() {
     // ensure runtime resources exist - for examples & local tests
+    #[cfg(not(feature = "ultralight-resources"))]
+    std::env::var("ULTRALIGHT_RESOURCES_DIR").expect("If `--features ultralight-resources` is not passed, `ULTRALIGHT_RESOURCES_DIR` Must be set. \nSee README.md for more information");
     #[cfg(feature = "ultralight-resources")]
     {
         let mut possible_directories = Vec::new();
