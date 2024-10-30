@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.81.0"
 description = "iced webview library"
 repository = "https://github.com/LegitCamper/iced_webview/"
+readme = "README.md"
 
 [profile.dev]
 incremental = true

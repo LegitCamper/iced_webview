@@ -9,17 +9,26 @@ A library to embed Web views in iced applications
 #### examples:
 
 ##### `examples/embedded_webview`
+A simple example to showcase an embedded webview (uses the basic webview)
+![image](https://raw.githubusercontent.com/LegitCamper/iced_webview/refs/heads/main/assets/embedded_webview.png)
 ```sh
 cargo run --example embedded_webview --features ultralight-resources
 ```
 
+##### `examples/multi_webview`
+A more advanced example that uses the advanced webview module and has two simultaneous webviews open
+![image](https://raw.githubusercontent.com/LegitCamper/iced_webview/refs/heads/main/assets/multi_view.png)
+```sh
+cargo run --example multi_webview --features ultralight-resources
+```
+
 ## Extra files (Resources)
 
-You need to include `resources` folder in the execution directory(same level as Cargo.toml).
+Ultralight requires runtime resources. (cacert.pem, icudt67l.dat)
 
-You can find the resources folder in the [Ultralight SDK]
+> You can either set the path to them with the `ULTRALIGHT_RESOURCES_DIR` env. This varible can also be set in `.cargo/config.toml`. The resouces direcory can be downloaded from [Ultralight SDK]
 
-> Rust will automatically symlink the directory for development with `--features --ultralight-resources`
+> Or Rust will do its best symlink the directory with `--features ultralight-resources`. If this fails please use `ULTRALIGHT_RESOURCES_DIR`
 
 ## Deployment
 
