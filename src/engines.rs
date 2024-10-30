@@ -14,6 +14,15 @@ pub enum PixelFormat {
     Bgra,
 }
 
+/// Result type for get_url, get_title, get_view, and get_cursor
+/// This is because they can fail by the wrong id, and the requested view, may not be loaded yet
+#[derive(Debug, Clone)]
+pub enum EngineResult<T> {
+    IdDoesNotExist,
+    NotLoaded,
+    Success(T),
+}
+
 /// Alias of usize used for controlling specific views
 /// Only used by advanced to get views, basic simply uses u32
 pub type ViewId = usize;
@@ -35,7 +44,7 @@ pub trait Engine {
     /// Can fail if requested id does not exist
     fn remove_view(&mut self, id: ViewId) -> Option<()>;
 
-    // window changes - no id needed they work for all views
+    // window changes - no id needed they work for all views(gloabally)
     fn focus(&mut self);
     fn unfocus(&self);
     fn resize(&mut self, size: Size<u32>);
@@ -59,13 +68,13 @@ pub trait Engine {
     fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta) -> Option<()>;
 
     /// Can fail if requested id does not exist or page has not loaded and therfore has no url
-    fn get_url(&self, id: ViewId) -> Option<String>;
+    fn get_url(&self, id: ViewId) -> EngineResult<String>;
     /// Can fail if requested id does not exist or page has not loaded and therfore has no title
-    fn get_title(&self, id: ViewId) -> Option<String>;
+    fn get_title(&self, id: ViewId) -> EngineResult<String>;
     /// Can fail if requested id does not exist
-    fn get_view(&self, id: ViewId) -> Option<&ImageInfo>;
+    fn get_cursor(&self, id: ViewId) -> EngineResult<Interaction>;
     /// Can fail if requested id does not exist
-    fn get_cursor(&self, id: ViewId) -> Option<Interaction>;
+    fn get_view(&self, id: ViewId) -> EngineResult<&ImageInfo>;
 }
 
 /// Allows users to create new views with url or custom html

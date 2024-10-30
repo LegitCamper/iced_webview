@@ -15,6 +15,7 @@ use iced::{Element, Point, Size, Task};
 use url::Url;
 
 use crate::{engines, ImageInfo, PageType, ViewId};
+use engines::EngineResult;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
@@ -127,7 +128,8 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
         if self.current_view_index.is_some() {
             if let Some(on_url_change) = &self.on_url_change {
-                if let Some(url) = self.engine.get_url(self.get_current_view_id()) {
+                if let EngineResult::Success(url) = self.engine.get_url(self.get_current_view_id())
+                {
                     if self.url != url {
                         self.url = url.clone();
                         tasks.push(Task::done(on_url_change(url)))
@@ -135,7 +137,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 }
             }
             if let Some(on_title_change) = &self.on_title_change {
-                if let Some(title) = self.engine.get_title(self.get_current_view_id()) {
+                if let EngineResult::Success(title) =
+                    self.engine.get_title(self.get_current_view_id())
+                {
                     if self.title != title {
                         self.title = title.clone();
                         tasks.push(Task::done(on_title_change(title)))
@@ -225,16 +229,23 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
     /// Returns webview widget for the current view
     pub fn view(&self) -> Element<Action> {
-        WebViewWidget::new(
-            self.view_size,
-            self.engine
-                .get_view(self.get_current_view_id())
-                .expect("failed to get view, because current view id does not exist"),
-            self.engine
-                .get_cursor(self.get_current_view_id())
-                .expect("failed to get view, because current view id does not exist"),
-        )
-        .into()
+        let view = match self.engine.get_view(self.get_current_view_id()) {
+            EngineResult::IdDoesNotExist => panic!("Requested Id does not exist"),
+            EngineResult::NotLoaded => {
+                return WebViewWidget::new(self.view_size, &ImageInfo::default(), Interaction::None)
+                    .into()
+            }
+            EngineResult::Success(view) => view,
+        };
+        let cursor = match self.engine.get_cursor(self.get_current_view_id()) {
+            EngineResult::IdDoesNotExist => panic!("Requested Id does not exist"),
+            EngineResult::NotLoaded => {
+                return WebViewWidget::new(self.view_size, &ImageInfo::default(), Interaction::None)
+                    .into()
+            }
+            EngineResult::Success(cursor) => cursor,
+        };
+        WebViewWidget::new(self.view_size, view, cursor).into()
     }
 }
 

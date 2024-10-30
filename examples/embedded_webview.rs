@@ -17,11 +17,11 @@ fn main() -> iced::Result {
 #[derive(Debug, Clone)]
 enum Message {
     WebView(Action),
-    ToggleWebviewVisibility,
+    ToggleWebview,
     UrlChanged(String),
-    NewWebViewCreated,
+    WebviewCreated,
     CreateWebview,
-    SwitchWebview,
+    CycleWebview,
 }
 
 struct App {
@@ -35,7 +35,7 @@ struct App {
 impl App {
     fn new() -> (Self, Task<Message>) {
         let webview = WebView::new()
-            .on_create_view(Message::NewWebViewCreated)
+            .on_create_view(Message::WebviewCreated)
             .on_url_change(Message::UrlChanged);
         (
             Self {
@@ -52,17 +52,19 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::NewWebViewCreated => {
+            Message::WebView(msg) => self.webview.update(msg),
+            Message::CreateWebview => self
+                .webview
+                .update(Action::CreateView(PageType::Url(URL.to_string()))),
+            Message::WebviewCreated => {
                 if self.current_view == None {
-                    self.current_view = Some(0);
                     // if its the first tab change to it, after that require switching manually
-                    return Task::done(Action::ChangeView(0)).map(Message::WebView);
+                    return Task::done(Message::CycleWebview);
                 }
                 self.num_views += 1;
                 Task::none()
             }
-            Message::WebView(msg) => self.webview.update(msg),
-            Message::ToggleWebviewVisibility => {
+            Message::ToggleWebview => {
                 self.show_webview = !self.show_webview;
                 Task::none()
             }
@@ -70,10 +72,7 @@ impl App {
                 self.webview_url = Some(new_url);
                 Task::none()
             }
-            Message::CreateWebview => self
-                .webview
-                .update(Action::CreateView(PageType::Url(URL.to_string()))),
-            Message::SwitchWebview => {
+            Message::CycleWebview => {
                 if let Some(current_view) = self.current_view.as_mut() {
                     if *current_view + 1 > self.num_views {
                         *current_view = 0;
@@ -82,7 +81,8 @@ impl App {
                     };
                     self.webview.update(Action::ChangeView(*current_view))
                 } else {
-                    Task::none()
+                    self.current_view = Some(0);
+                    self.webview.update(Action::ChangeView(0))
                 }
             }
         }
@@ -96,9 +96,9 @@ impl App {
                 "Iced docs can be pulled up inside an iced app?! Whoa!"
             }),
             container(row![
-                button("Toggle web view(s)").on_press(Message::ToggleWebviewVisibility),
+                button("Toggle web view(s)").on_press(Message::ToggleWebview),
                 button("New web view").on_press(Message::CreateWebview),
-                button("Switch views").on_press(Message::SwitchWebview),
+                button("Switch views").on_press(Message::CycleWebview),
             ])
             .align_right(Length::Fill)
         ]];

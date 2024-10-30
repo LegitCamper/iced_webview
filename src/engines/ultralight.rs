@@ -19,9 +19,8 @@ use ul_next::{
     Surface,
 };
 
+use super::{Engine, EngineResult, PageType, PixelFormat, ViewId};
 use crate::ImageInfo;
-
-use super::{Engine, PageType, PixelFormat, ViewId};
 
 struct UlClipboard {
     ctx: ClipboardContext,
@@ -386,26 +385,49 @@ impl Engine for Ultralight {
         Some(())
     }
 
-    fn get_url(&self, id: ViewId) -> Option<String> {
-        self.get_view(id)?.view.url().ok()
+    fn get_url(&self, id: ViewId) -> EngineResult<String> {
+        if let Some(view) = self.get_view(id) {
+            match view.view.url() {
+                Ok(url) => EngineResult::Success(url),
+                Err(_) => EngineResult::NotLoaded,
+            }
+        } else {
+            EngineResult::IdDoesNotExist
+        }
     }
 
-    fn get_title(&self, id: ViewId) -> Option<String> {
-        self.get_view(id)?.view.title().ok()
+    fn get_title(&self, id: ViewId) -> EngineResult<String> {
+        if let Some(view) = self.get_view(id) {
+            match view.view.title() {
+                Ok(title) => EngineResult::Success(title),
+                Err(_) => EngineResult::NotLoaded,
+            }
+        } else {
+            EngineResult::IdDoesNotExist
+        }
     }
 
-    fn get_view(&self, id: ViewId) -> Option<&ImageInfo> {
-        Some(&self.get_view(id)?.last_frame)
+    fn get_cursor(&self, id: ViewId) -> EngineResult<mouse::Interaction> {
+        if let Some(view) = self.get_view(id) {
+            match view.cursor.read() {
+                Ok(cursor) => EngineResult::Success(*cursor),
+                Err(_) => EngineResult::NotLoaded,
+            }
+        } else {
+            EngineResult::IdDoesNotExist
+        }
     }
 
-    fn get_cursor(&self, id: ViewId) -> Option<mouse::Interaction> {
-        Some(
-            *self
-                .get_view(id)?
-                .cursor
-                .read()
-                .expect("Failed to get Ultraights cursor status"),
-        )
+    fn get_view(&self, id: ViewId) -> EngineResult<&ImageInfo> {
+        if let Some(view) = self.get_view(id) {
+            if self.get_view(id).unwrap().view.is_loading() {
+                EngineResult::NotLoaded
+            } else {
+                EngineResult::Success(&view.last_frame)
+            }
+        } else {
+            EngineResult::IdDoesNotExist
+        }
     }
 }
 
