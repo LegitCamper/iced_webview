@@ -60,25 +60,8 @@ impl Default for Ultralight {
     fn default() -> Self {
         let config = Config::start().build().expect("Failed to start Ultralight");
         platform::enable_platform_fontloader();
-        let env = var("CARGO_ULTRALIGHT_RESOURCES");
-        let resources_path: PathBuf = match env {
-            Ok(env) => PathBuf::from_str(&env)
-                .expect("Failed to get path from ultralight resources enviroment varible"),
-            Err(_) => {
-                // env not set - check if its been symlinked by build.rs
-                match Path::new("./resources").exists() {
-                    true => Path::new("./resources").to_owned(),
-                    false => panic!("ULTRALIGHT_RESOURCES_DIR was not set and ultralight-resources feature was not enabled"),
-                }
-            }
-        };
-        assert!(Path::new(&resources_path).join("cacert.pem").exists());
-        assert!(Path::new(&resources_path).join("icudt67l.dat").exists());
-        let resources_dir = resources_path
-            .parent()
-            .expect("resources path needs to point to the resources directory"); // leaves resources directory
-        platform::enable_platform_filesystem(resources_dir)
-            .expect("Failed to access ultralight filesystem");
+        platform::enable_platform_filesystem(platform_filesystem())
+            .expect("Failed to get platform filesystem");
         platform::set_clipboard(UlClipboard {
             ctx: ClipboardContext::new().expect("Failed to get ownership of clipboard"),
         });
@@ -195,7 +178,7 @@ impl Engine for Ultralight {
             surface,
             view,
             cursor,
-            last_frame: ImageInfo::default(),
+            last_frame: ImageInfo::blank(size.width, size.height),
         };
         self.views.push(view);
         Some(id)
@@ -429,6 +412,27 @@ impl Engine for Ultralight {
             EngineResult::IdDoesNotExist
         }
     }
+}
+
+fn platform_filesystem() -> PathBuf {
+    let env = var("ULTRALIGHT_RESOURCES_DIR");
+    let resources_path: PathBuf = match env {
+        Ok(env) => PathBuf::from_str(&env)
+            .expect("Failed to get path from ultralight resources enviroment varible"),
+        Err(_) => {
+            // env not set - check if its been symlinked by build.rs
+            match Path::new("./resources").exists() {
+                    true => Path::new("./resources").to_owned(),
+                    false => panic!("ULTRALIGHT_RESOURCES_DIR was not set and ultralight-resources feature was not enabled"),
+                }
+        }
+    };
+    assert!(Path::new(&resources_path).join("cacert.pem").exists());
+    assert!(Path::new(&resources_path).join("icudt67l.dat").exists());
+    resources_path
+        .parent() // leaves resources directory
+        .expect("resources path needs to point to the resources directory")
+        .into()
 }
 
 #[derive(Debug, PartialEq, Eq)]

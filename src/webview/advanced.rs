@@ -193,7 +193,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 return WebViewWidget::new(
                     id,
                     self.view_size,
-                    &ImageInfo::default(),
+                    &ImageInfo::blank(self.view_size.width, self.view_size.height),
                     Interaction::None,
                 )
                 .into()
@@ -206,7 +206,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 return WebViewWidget::new(
                     id,
                     self.view_size,
-                    &ImageInfo::default(),
+                    &ImageInfo::blank(self.view_size.width, self.view_size.height),
                     Interaction::None,
                 )
                 .into()

@@ -232,16 +232,24 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         let view = match self.engine.get_view(self.get_current_view_id()) {
             EngineResult::IdDoesNotExist => panic!("Requested Id does not exist"),
             EngineResult::NotLoaded => {
-                return WebViewWidget::new(self.view_size, &ImageInfo::default(), Interaction::None)
-                    .into()
+                return WebViewWidget::new(
+                    self.view_size,
+                    &ImageInfo::blank(self.view_size.width, self.view_size.height),
+                    Interaction::None,
+                )
+                .into()
             }
             EngineResult::Success(view) => view,
         };
         let cursor = match self.engine.get_cursor(self.get_current_view_id()) {
             EngineResult::IdDoesNotExist => panic!("Requested Id does not exist"),
             EngineResult::NotLoaded => {
-                return WebViewWidget::new(self.view_size, &ImageInfo::default(), Interaction::None)
-                    .into()
+                return WebViewWidget::new(
+                    self.view_size,
+                    &ImageInfo::blank(self.view_size.width, self.view_size.height),
+                    Interaction::None,
+                )
+                .into()
             }
             EngineResult::Success(cursor) => cursor,
         };
