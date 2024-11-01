@@ -53,6 +53,14 @@ impl ImageInfo {
         }
     }
 
+    pub fn blank(width: u32, height: u32) -> Self {
+        Self {
+            pixels: vec![255; (width as usize * height as usize) * 4],
+            width: width,
+            height: height,
+        }
+    }
+
     pub fn as_image(&self) -> image::Image<image::Handle> {
         image::Image::new(image::Handle::from_rgba(
             self.width,

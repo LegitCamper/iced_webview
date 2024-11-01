@@ -57,28 +57,14 @@ pub struct Ultralight {
 }
 
 impl Default for Ultralight {
+    /// Creates a default CPU rendered ultralight config
     fn default() -> Self {
-        let config = Config::start().build().expect("Failed to start Ultralight");
+        let config = Config::start()
+            .build()
+            .expect("Failed to build ultralight config");
         platform::enable_platform_fontloader();
-        let env = var("CARGO_ULTRALIGHT_RESOURCES");
-        let resources_path: PathBuf = match env {
-            Ok(env) => PathBuf::from_str(&env)
-                .expect("Failed to get path from ultralight resources enviroment varible"),
-            Err(_) => {
-                // env not set - check if its been symlinked by build.rs
-                match Path::new("./resources").exists() {
-                    true => Path::new("./resources").to_owned(),
-                    false => panic!("ULTRALIGHT_RESOURCES_DIR was not set and ultralight-resources feature was not enabled"),
-                }
-            }
-        };
-        assert!(Path::new(&resources_path).join("cacert.pem").exists());
-        assert!(Path::new(&resources_path).join("icudt67l.dat").exists());
-        let resources_dir = resources_path
-            .parent()
-            .expect("resources path needs to point to the resources directory"); // leaves resources directory
-        platform::enable_platform_filesystem(resources_dir)
-            .expect("Failed to access ultralight filesystem");
+        platform::enable_platform_filesystem(platform_filesystem())
+            .expect("Failed to get platform filesystem");
         platform::set_clipboard(UlClipboard {
             ctx: ClipboardContext::new().expect("Failed to get ownership of clipboard"),
         });
@@ -101,13 +87,24 @@ impl Default for Ultralight {
 
 impl Ultralight {
     /// Creates a new Ultralight adapter
+    /// to enable gpu acceleration use feature ultralight-acceleration
     pub fn new(font: &str, scale: f64) -> Self {
+        #[cfg(feature = "ultralight-acceleration")]
+        let acceration = true;
+        #[cfg(not(feature = "ultralight-acceleration"))]
+        let acceration = false;
+
+        if acceration {
+            let (sender, mut receiver) = ul_next::gpu_driver::glium::create_gpu_driver()
+                .expect("Failed to create ultralight glium gpu driver");
+            platform::set_gpu_driver(sender);
+        }
+
         Self {
             view_config: view::ViewConfig::start()
                 .initial_device_scale(scale)
                 .font_family_standard(font)
-                // iced_webview does not currently support acceleration
-                .is_accelerated(false)
+                .is_accelerated(acceration)
                 .build()
                 .unwrap(),
             ..Default::default()
@@ -429,6 +426,27 @@ impl Engine for Ultralight {
             EngineResult::IdDoesNotExist
         }
     }
+}
+
+fn platform_filesystem() -> PathBuf {
+    let env = var("ULTRALIGHT_RESOURCES_DIR");
+    let resources_path: PathBuf = match env {
+        Ok(env) => PathBuf::from_str(&env)
+            .expect("Failed to get path from ultralight resources enviroment varible"),
+        Err(_) => {
+            // env not set - check if its been symlinked by build.rs
+            match Path::new("./resources").exists() {
+                    true => Path::new("./resources").to_owned(),
+                    false => panic!("ULTRALIGHT_RESOURCES_DIR was not set and ultralight-resources feature was not enabled"),
+                }
+        }
+    };
+    assert!(Path::new(&resources_path).join("cacert.pem").exists());
+    assert!(Path::new(&resources_path).join("icudt67l.dat").exists());
+    resources_path
+        .parent() // leaves resources directory
+        .expect("resources path needs to point to the resources directory")
+        .into()
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -13,8 +13,9 @@ opt-level = "s"
 lto = "thin"
 
 [features]
-default = ["ultralight"]
+default = ["ultralight", "ultralight-acceleration"]
 ultralight = ["dep:ul-next"]
+ultralight-acceleration = ["ul-next/glium"]
 ultralight-resources = []
 
 [dependencies]
