@@ -15,7 +15,6 @@ use iced::{Element, Point, Size, Task};
 use url::Url;
 
 use crate::{engines, ImageInfo, PageType, ViewId};
-use engines::EngineResult;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
@@ -128,28 +127,34 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
 
         if self.current_view_index.is_some() {
             if let Some(on_url_change) = &self.on_url_change {
-                if let EngineResult::Success(url) = self.engine.get_url(self.get_current_view_id())
-                {
-                    if self.url != url {
-                        self.url = url.clone();
-                        tasks.push(Task::done(on_url_change(url)))
-                    }
+                let url = self.engine.get_url(self.get_current_view_id());
+                if self.url != url {
+                    self.url = url.clone();
+                    tasks.push(Task::done(on_url_change(url)))
                 }
             }
             if let Some(on_title_change) = &self.on_title_change {
-                if let EngineResult::Success(title) =
-                    self.engine.get_title(self.get_current_view_id())
-                {
-                    if self.title != title {
-                        self.title = title.clone();
-                        tasks.push(Task::done(on_title_change(title)))
-                    }
+                let title = self.engine.get_title(self.get_current_view_id());
+                if self.title != title {
+                    self.title = title.clone();
+                    tasks.push(Task::done(on_title_change(title)))
                 }
             }
         }
 
         match action {
             Action::ChangeView(index) => {
+                // TODO: get around new views not rendering??
+                {
+                    self.view_size.width += 10;
+                    self.view_size.height -= 10;
+                    self.engine.resize(self.view_size);
+                    self.view_size.width -= 10;
+                    self.view_size.height += 10;
+                    self.engine.resize(self.view_size);
+                    self.engine
+                        .request_render(self.index_as_view_id(index), self.view_size);
+                }
                 self.current_view_index = Some(index as usize);
             }
             Action::CloseCurrentView => {
@@ -168,14 +173,8 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 }
             }
             Action::CreateView(page_type) => {
-                let id = self
-                    .engine
-                    .new_view(self.view_size)
-                    .expect("Failed to create new view");
+                let id = self.engine.new_view(self.view_size, Some(page_type));
                 self.view_ids.push(id);
-                self.engine
-                    .goto(id, page_type)
-                    .expect("Failed to page type");
 
                 if let Some(on_view_create) = &self.on_create_view {
                     tasks.push(Task::done(on_view_create.clone()))
@@ -183,40 +182,32 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
             Action::GoBackward => {
                 self.engine.go_back(self.get_current_view_id());
-                self.engine
-                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::GoForward => {
                 self.engine.go_forward(self.get_current_view_id());
-                self.engine
-                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::GoToUrl(url) => {
                 self.engine
                     .goto(self.get_current_view_id(), PageType::Url(url.to_string()));
-                self.engine
-                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::Refresh => {
                 self.engine.refresh(self.get_current_view_id());
-                self.engine
-                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::SendKeyboardEvent(event) => {
                 self.engine
                     .handle_keyboard_event(self.get_current_view_id(), event);
-                self.engine
-                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::SendMouseEvent(point, event) => {
                 self.engine
                     .handle_mouse_event(self.get_current_view_id(), event, point);
-                self.engine
-                    .request_render(self.get_current_view_id(), self.view_size);
             }
             Action::Update => {
                 self.engine.update();
-                self.engine.render(self.view_size);
+                if self.current_view_index.is_some() {
+                    self.engine
+                        .request_render(self.get_current_view_id(), self.view_size);
+                }
+                return Task::batch(tasks);
             }
             Action::Resize(size) => {
                 self.view_size = size;
@@ -224,56 +215,36 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
         };
 
+        if self.current_view_index.is_some() {
+            self.engine
+                .request_render(self.get_current_view_id(), self.view_size);
+        }
+
         Task::batch(tasks)
     }
 
     /// Returns webview widget for the current view
     pub fn view(&self) -> Element<Action> {
-        let view = match self.engine.get_view(self.get_current_view_id()) {
-            EngineResult::IdDoesNotExist => panic!("Requested Id does not exist"),
-            EngineResult::NotLoaded => {
-                return WebViewWidget::new(
-                    self.view_size,
-                    &ImageInfo::blank(self.view_size.width, self.view_size.height),
-                    Interaction::None,
-                )
-                .into()
-            }
-            EngineResult::Success(view) => view,
-        };
-        let cursor = match self.engine.get_cursor(self.get_current_view_id()) {
-            EngineResult::IdDoesNotExist => panic!("Requested Id does not exist"),
-            EngineResult::NotLoaded => {
-                return WebViewWidget::new(
-                    self.view_size,
-                    &ImageInfo::blank(self.view_size.width, self.view_size.height),
-                    Interaction::None,
-                )
-                .into()
-            }
-            EngineResult::Success(cursor) => cursor,
-        };
-        WebViewWidget::new(self.view_size, view, cursor).into()
+        WebViewWidget::new(
+            self.engine.get_view(self.get_current_view_id()),
+            self.engine.get_cursor(self.get_current_view_id()),
+        )
+        .into()
     }
 }
 
-struct WebViewWidget {
-    bounds: Size<u32>,
-    image: Image<Handle>,
+struct WebViewWidget<'a> {
+    image_info: &'a ImageInfo,
     cursor: Interaction,
 }
 
-impl WebViewWidget {
-    fn new(bounds: Size<u32>, image: &ImageInfo, cursor: Interaction) -> Self {
-        Self {
-            bounds,
-            image: image.as_image(),
-            cursor,
-        }
+impl<'a> WebViewWidget<'a> {
+    fn new(image_info: &'a ImageInfo, cursor: Interaction) -> Self {
+        Self { image_info, cursor }
     }
 }
 
-impl<Renderer> Widget<Action, Theme, Renderer> for WebViewWidget
+impl<'a, Renderer> Widget<Action, Theme, Renderer> for WebViewWidget<'_>
 where
     Renderer: iced::advanced::image::Renderer<Handle = iced::advanced::image::Handle>,
 {
@@ -304,7 +275,7 @@ where
         viewport: &Rectangle,
     ) {
         <Image<Handle> as Widget<Action, Theme, Renderer>>::draw(
-            &self.image,
+            &self.image_info.as_image(),
             tree,
             renderer,
             theme,
@@ -327,7 +298,7 @@ where
         _viewport: &Rectangle,
     ) -> event::Status {
         let size = Size::new(layout.bounds().width as u32, layout.bounds().height as u32);
-        if self.bounds != size {
+        if self.image_info.width != size.width || self.image_info.height != size.height {
             shell.publish(Action::Resize(size));
         }
 
@@ -361,12 +332,12 @@ where
     }
 }
 
-impl<'a, Message: 'a, Renderer> From<WebViewWidget> for Element<'a, Message, Theme, Renderer>
+impl<'a, Message: 'a, Renderer> From<WebViewWidget<'a>> for Element<'a, Message, Theme, Renderer>
 where
     Renderer: advanced::Renderer + advanced::image::Renderer<Handle = advanced::image::Handle>,
-    WebViewWidget: Widget<Message, Theme, Renderer>,
+    WebViewWidget<'a>: Widget<Message, Theme, Renderer>,
 {
-    fn from(widget: WebViewWidget) -> Self {
+    fn from(widget: WebViewWidget<'a>) -> Self {
         Self::new(widget)
     }
 }

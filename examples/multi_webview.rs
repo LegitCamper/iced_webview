@@ -84,7 +84,7 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         time::every(Duration::from_millis(10))
-            .map(|_| Action::Update)
+            .map(|_| Action::UpdateAll)
             .map(Message::WebView)
     }
 }
