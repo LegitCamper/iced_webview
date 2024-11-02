@@ -237,7 +237,6 @@ impl Engine for Ultralight {
                 .get_view_mut(id)
                 .view
                 .load_html(&html)
-                .ok()
                 .expect("Failed to load given html"),
         }
         self.get_view_mut(id).was_loading = true;
@@ -391,17 +390,11 @@ impl Engine for Ultralight {
     }
 
     fn get_url(&self, id: ViewId) -> String {
-        match self.get_view(id).view.url() {
-            Ok(url) => url,
-            Err(_) => String::new(),
-        }
+        self.get_view(id).view.url().unwrap_or_default()
     }
 
     fn get_title(&self, id: ViewId) -> String {
-        match self.get_view(id).view.title() {
-            Ok(title) => title,
-            Err(_) => String::new(),
-        }
+        self.get_view(id).view.title().unwrap_or_default()
     }
 
     fn get_cursor(&self, id: ViewId) -> mouse::Interaction {

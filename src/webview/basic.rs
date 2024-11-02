@@ -244,7 +244,7 @@ impl<'a> WebViewWidget<'a> {
     }
 }
 
-impl<'a, Renderer> Widget<Action, Theme, Renderer> for WebViewWidget<'_>
+impl<Renderer> Widget<Action, Theme, Renderer> for WebViewWidget<'_>
 where
     Renderer: iced::advanced::image::Renderer<Handle = iced::advanced::image::Handle>,
 {
