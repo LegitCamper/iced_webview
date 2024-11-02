@@ -6,6 +6,7 @@ rust-version = "1.81.0"
 description = "iced webview library"
 authors = ["LegitCamper"]
 repository = "https://github.com/LegitCamper/iced_webview/"
+license = "Apache-2.0"
 readme = "README.md"
 
 [profile.dev]
