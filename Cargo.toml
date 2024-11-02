@@ -4,6 +4,7 @@ version = "0.0.1"
 edition = "2021"
 rust-version = "1.81.0"
 description = "iced webview library"
+authors = ["LegitCamper"]
 repository = "https://github.com/LegitCamper/iced_webview/"
 readme = "README.md"
 
