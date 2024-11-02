@@ -47,7 +47,8 @@ impl App {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
+        let mut tasks = Vec::new();
+        tasks.push(match message {
             Message::WebView(msg) => self.webview.update(msg),
             Message::CreatedNewWebView(view_id) => {
                 if self.webviews.0 == None {
@@ -57,7 +58,14 @@ impl App {
                 }
                 Task::none()
             }
+        });
+        if let Some(view_0) = self.webviews.0 {
+            tasks.push(self.webview.update(Action::Update(view_0)));
         }
+        if let Some(view_1) = self.webviews.1 {
+            tasks.push(self.webview.update(Action::Update(view_1)));
+        }
+        Task::batch(tasks)
     }
 
     fn view(&self) -> Element<Message> {
@@ -83,8 +91,8 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        time::every(Duration::from_millis(10))
+        Subscription::batch([time::every(Duration::from_millis(10))
             .map(|_| Action::UpdateAll)
-            .map(Message::WebView)
+            .map(Message::WebView)])
     }
 }
