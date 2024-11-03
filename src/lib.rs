@@ -1,48 +1,67 @@
-//! A library to embed Web views in iced applications. It is a renderer agnostic webview library for Iced.
+//! Iced_webview is a library to embed Web views in iced applications. It is a renderer agnostic webview library for Iced.
 //!
-//! > Note: Currently this library only supports [Ultralight]/Webkit, but more rendering engines are planned to be supported.
-//! > [Ultralight has its own licence](https://ultralig.ht/pricing/) that should be reviewed before deciding if it works for you
+//! > Note: Currently this library only supports [Ultralight](https://ultralig.ht)/Webkit, but more rendering engines are planned to be supported.
+//! > [Ultralight has its own license](https://ultralig.ht/pricing/) that should be reviewed before deciding if it works for you
 //!
 //! Has two separate widgets: Basic, and Advanced.
-//! The basic widget is very simple to implement and requires no knoledge of the widget.
-//! You can use simple abstractions like CloseCurrent, and ChangeView. o
-//! Whereis with the Advanced widget, you have callbacks when a view is done being created and you need to keep track of the ViewId for view calls
+//! The basic widget is very simple to implement and requires no knowledge of the widget.
+//! You can use simple abstractions like CloseCurrent, and ChangeView.
+//! Whereas with the Advanced widget, you have callbacks when a view is done being created, and you need to keep track of the ViewId for view calls
 //!
 //! #Basic usage should look familiar to iced users:
-//! You'll need to create a `Message` for Webview:
 //!
+//! You'll need to create a `Message` for Webview:
 //! ```rust
 //! enum Message {
-//!    WebView(Action),
+//!    WebView(iced_webview::Action),
 //!    Update
 //! }
 //! ```
 //!
-//! Then you should be able to call the usual view/update methodes:
+//! Create a new struct to store webview state
+//! ```rust
+//! struct State {
+//!    webview: iced_webview::WebView<iced_webview::Ultralight, Message>,
+//! }
+//! # #[derive(Clone)]
+//! # enum Message { }
+//! ```
+//!
+//! ###Then you should be able to call the usual `view/update` methods:
 //!
 //! ```rust
-//! fn update(state: &mut State, message: Message) {
+//! fn update(state: &mut State, message: Message) -> iced::Task<Message> {
 //!     match message {
-//!         Message::WebView(msg) => self.webview.update(msg),
-//!         Message::Update => self.webview.update(Action::Update),
+//!         Message::WebView(msg) => state.webview.update(msg),
+//!         Message::Update => state.webview.update(iced_webview::Action::Update),
 //!     }
 //! }
+//! # #[derive(Clone)]
+//! # enum Message { WebView(iced_webview::Action), Update }
+//! # struct State { webview: iced_webview::WebView<iced_webview::Ultralight, Message> }
 //! ```
 //!
 //! ```rust
-//! fn view(state: &mut State, message: Message) -> Element<Message> {
-//!    self.webview.view().map(Message::WebView).into()
+//! fn view(state: &mut State, message: Message) -> iced::Element<Message> {
+//!    state.webview.view().map(Message::WebView).into()
 //! }
+//! # #[derive(Clone)]
+//! # enum Message { WebView(iced_webview::Action) }
+//! # struct State { webview: iced_webview::WebView<iced_webview::Ultralight, Message> }
 //! ```
 //!
 //! The subscription provides periodic updates so that all the backend rendering is done frequently enough
 //!
 //! ```rust
-//! fn subscription(&self) -> Subscription<Message> {
-//!     time::every(Duration::from_millis(10))
-//!         .map(|_| Action::Update)
+//! use iced::time;
+//! fn subscription(state: &mut State) -> iced::Subscription<Message> {
+//!     time::every(std::time::Duration::from_millis(10))
+//!         .map(|_| iced_webview::Action::Update)
 //!         .map(Message::WebView)
 //! }
+//! # #[derive(Clone)]
+//! # enum Message { WebView(iced_webview::Action) }
+//! # struct State { webview: iced_webview::WebView<iced_webview::Ultralight, Message> }
 //! ```
 //!
 //!
