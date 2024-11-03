@@ -1,6 +1,6 @@
 [package]
 name = "iced_webview"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 rust-version = "1.81.0"
 description = "iced webview library"
@@ -9,9 +9,6 @@ repository = "https://github.com/LegitCamper/iced_webview/"
 license = "Apache-2.0"
 readme = "README.md"
 
-[package.metadata.docs.rs]
-features = ["docs_only"]
-
 [profile.dev]
 incremental = true
 opt-level = "s"
@@ -19,9 +16,12 @@ lto = "thin"
 
 [features]
 default = ["ultralight"]
-docs_only = []
 ultralight = ["dep:ul-next"]
 ultralight-resources = []
+docs_only = []
+
+[package.metadata.docs.rs]
+features = ["docs_only"]
 
 [dependencies]
 clipboard-rs = "0.2.1"
