@@ -1,23 +1,27 @@
+use crate::ImageInfo;
 use iced::keyboard;
 use iced::mouse::{self, Interaction};
-use iced::Size;
-// use iced::widget::image::{Handle, Image};
 use iced::Point;
+use iced::Size;
 
-use crate::ImageInfo;
-
+/// A Ultralight implementation of Engine
 #[cfg(feature = "ultralight")]
 pub mod ultralight;
 
 /// Creation of new pages to be of a html type or a url
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub enum PageType {
+    /// Allows visiting Url web pages
     Url(String),
+    /// Allows custom html web pages
     Html(String),
 }
 
+/// Enables browser engines to display their images in different formats
 pub enum PixelFormat {
+    /// RGBA
     Rgba,
+    /// BGRA
     Bgra,
 }
 
@@ -40,24 +44,35 @@ pub trait Engine {
     /// Removes desired view
     fn remove_view(&mut self, id: ViewId);
 
-    // window changes - no id needed they work for all views(gloabally)
+    /// Focuses webview
     fn focus(&mut self);
+    /// Unfocuses webview
     fn unfocus(&self);
+    /// Resizes webview
     fn resize(&mut self, size: Size<u32>);
 
-    // handle events per engine
+    /// lets the engine handle keyboard events
     fn handle_keyboard_event(&mut self, id: ViewId, event: keyboard::Event);
+    /// lets the engine handle mouse events
     fn handle_mouse_event(&mut self, id: ViewId, point: Point, event: mouse::Event);
-
-    /// Allows navigating to html or Url on a specific view
-    fn goto(&mut self, id: ViewId, page_type: PageType);
-    fn refresh(&mut self, id: ViewId);
-    fn go_forward(&mut self, id: ViewId);
-    fn go_back(&mut self, id: ViewId);
+    /// Handles Scrolles on view
     fn scroll(&mut self, id: ViewId, delta: mouse::ScrollDelta);
 
+    /// Go to a specific page type
+    fn goto(&mut self, id: ViewId, page_type: PageType);
+    /// Refresh specific view
+    fn refresh(&mut self, id: ViewId);
+    /// Moves forward on view
+    fn go_forward(&mut self, id: ViewId);
+    /// Moves back on view
+    fn go_back(&mut self, id: ViewId);
+
+    /// Gets current url from view
     fn get_url(&self, id: ViewId) -> String;
+    /// Gets current title from view
     fn get_title(&self, id: ViewId) -> String;
+    /// Gets current cursor status from view
     fn get_cursor(&self, id: ViewId) -> Interaction;
+    /// Gets cpu renderered webview
     fn get_view(&self, id: ViewId) -> &ImageInfo;
 }

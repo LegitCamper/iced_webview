@@ -16,7 +16,9 @@ use url::Url;
 
 use crate::{engines, ImageInfo, PageType, ViewId};
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq)]
+/// Handles Actions for Basic webview
 pub enum Action {
     /// Changes view to the desired view index
     ChangeView(u32),
@@ -37,6 +39,7 @@ pub enum Action {
     Resize(Size<u32>),
 }
 
+/// The Basic WebView widget that creates and shows webview(s)
 pub struct WebView<Engine, Message>
 where
     Engine: engines::Engine,
@@ -94,25 +97,30 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> Default
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
+    /// Create new basic WebView widget
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// subscribe to create view events
     pub fn on_create_view(mut self, on_create_view: Message) -> Self {
         self.on_create_view = Some(on_create_view);
         self
     }
 
+    /// subscribe to close view events
     pub fn on_close_view(mut self, on_close_view: Message) -> Self {
         self.on_close_view = Some(on_close_view);
         self
     }
 
+    /// subscribe to url change events
     pub fn on_url_change(mut self, on_url_change: impl Fn(String) -> Message + 'static) -> Self {
         self.on_url_change = Some(Box::new(on_url_change));
         self
     }
 
+    /// subscribe to title change events
     pub fn on_title_change(
         mut self,
         on_title_change: impl Fn(String) -> Message + 'static,

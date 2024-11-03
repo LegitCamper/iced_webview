@@ -16,6 +16,7 @@ use url::Url;
 
 use crate::{engines, ImageInfo, PageType, ViewId};
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     CloseView(ViewId),
@@ -26,11 +27,14 @@ pub enum Action {
     Refresh(ViewId),
     SendKeyboardEvent(ViewId, keyboard::Event),
     SendMouseEvent(ViewId, mouse::Event, Point),
+    /// Call this periodically to update a view
     Update(ViewId),
+    /// Call this periodically to update a view(s)
     UpdateAll,
     Resize(Size<u32>),
 }
 
+/// The Advanced WebView widget that creates and shows webview(s)
 pub struct WebView<Engine, Message>
 where
     Engine: engines::Engine,
@@ -63,20 +67,24 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> Default
 }
 
 impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
+    /// Create new Advanced Webview widget
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Subscribe to create view events
     pub fn on_create_view(mut self, on_create_view: impl Fn(usize) -> Message + 'static) -> Self {
         self.on_create_view = Some(Box::new(on_create_view));
         self
     }
 
+    /// Subscribe to close view events
     pub fn on_close_view(mut self, on_close_view: impl Fn(usize) -> Message + 'static) -> Self {
         self.on_close_view = Some(Box::new(on_close_view));
         self
     }
 
+    /// Subscribe to url change events
     pub fn on_url_change(
         mut self,
         on_url_change: impl Fn(ViewId, String) -> Message + 'static,
@@ -85,6 +93,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
         self
     }
 
+    /// Subscribe to title change events
     pub fn on_title_change(
         mut self,
         on_title_change: impl Fn(ViewId, String) -> Message + 'static,

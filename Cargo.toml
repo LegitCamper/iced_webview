@@ -9,6 +9,9 @@ repository = "https://github.com/LegitCamper/iced_webview/"
 license = "Apache-2.0"
 readme = "README.md"
 
+[package.metadata.docs.rs]
+features = ["docs_only"]
+
 [profile.dev]
 incremental = true
 opt-level = "s"
@@ -16,6 +19,7 @@ lto = "thin"
 
 [features]
 default = ["ultralight"]
+docs_only = []
 ultralight = ["dep:ul-next"]
 ultralight-resources = []
 
