@@ -1761,7 +1761,7 @@ dependencies = [
 
 [[package]]
 name = "iced_webview"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "clipboard-rs",
  "html",
