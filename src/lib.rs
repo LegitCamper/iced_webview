@@ -1,4 +1,4 @@
-//! Iced_webview is a library to embed Web views in iced applications. It is a renderer agnostic webview library for Iced.
+//! Iced_webview is a library to embed web views in iced applications. It is a renderer agnostic webview library for Iced.
 //!
 //! > Note: Currently this library only supports [Ultralight](https://ultralig.ht)/Webkit, but more rendering engines are planned to be supported.
 //! > [Ultralight has its own license](https://ultralig.ht/pricing/) that should be reviewed before deciding if it works for you
@@ -8,7 +8,7 @@
 //! You can use simple abstractions like CloseCurrent, and ChangeView.
 //! Whereas with the Advanced widget, you have callbacks when a view is done being created, and you need to keep track of the ViewId for view calls
 //!
-//! #Basic usage should look familiar to iced users:
+//! # Basic usage should look familiar to iced users:
 //!
 //! You'll need to create a `Message` for Webview:
 //! ```rust
@@ -27,7 +27,7 @@
 //! # enum Message { }
 //! ```
 //!
-//! ###Then you should be able to call the usual `view/update` methods:
+//! ### Then you should be able to call the usual `view/update` methods:
 //!
 //! ```rust
 //! fn update(state: &mut State, message: Message) -> iced::Task<Message> {
@@ -65,7 +65,7 @@
 //! ```
 //!
 //!
-//! Examples can be found in the [iced_webview repo](https://github.com/LegitCamper/iced_webview)
+//! Examples can be found in the [iced_webview repo](https://github.com/LegitCamper/iced_webview/tree/main/examples)
 //!
 use iced::widget::image;
 
