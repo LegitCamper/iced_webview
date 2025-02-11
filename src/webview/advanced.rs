@@ -73,13 +73,13 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     }
 
     /// Subscribe to create view events
-    pub fn on_create_view(mut self, on_create_view: impl Fn(usize) -> Message + 'static) -> Self {
+    pub fn on_create_view(mut self, on_create_view: impl Fn(ViewId) -> Message + 'static) -> Self {
         self.on_create_view = Some(Box::new(on_create_view));
         self
     }
 
     /// Subscribe to close view events
-    pub fn on_close_view(mut self, on_close_view: impl Fn(usize) -> Message + 'static) -> Self {
+    pub fn on_close_view(mut self, on_close_view: impl Fn(ViewId) -> Message + 'static) -> Self {
         self.on_close_view = Some(Box::new(on_close_view));
         self
     }
@@ -187,7 +187,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     }
 
     /// Like a normal `view()` method in iced, but takes an id of the desired view
-    pub fn view(&self, id: usize) -> Element<Action> {
+    pub fn view(&self, id: ViewId) -> Element<Action> {
         WebViewWidget::new(
             id,
             self.view_size,

@@ -3,7 +3,7 @@ use iced::{
     widget::{button, column, container, row, text},
     Element, Length, Subscription, Task,
 };
-use iced_webview::{Action, PageType, Ultralight, WebView};
+use iced_webview::{basic::Action, Blitz, PageType, WebView};
 use std::time::Duration;
 
 static URL: &'static str = "https://docs.rs/iced/latest/iced/index.html";
@@ -25,7 +25,7 @@ enum Message {
 }
 
 struct App {
-    webview: WebView<Ultralight, Message>,
+    webview: WebView<Blitz, Message>,
     show_webview: bool,
     webview_url: Option<String>,
     num_views: u32,
@@ -55,7 +55,7 @@ impl App {
             Message::WebView(msg) => self.webview.update(msg),
             Message::CreateWebview => self
                 .webview
-                .update(Action::CreateView(PageType::Url(URL.to_string()))),
+                .update(Message::CreateView(PageType::Url(URL.to_string()))),
             Message::WebviewCreated => {
                 if self.current_view == None {
                     // if its the first tab change to it, after that require switching manually
@@ -79,10 +79,10 @@ impl App {
                     } else {
                         *current_view += 1;
                     };
-                    self.webview.update(Action::ChangeView(*current_view))
+                    self.webview.update(Message::ChangeView(*current_view))
                 } else {
                     self.current_view = Some(0);
-                    self.webview.update(Action::ChangeView(0))
+                    self.webview.update(Message::ChangeView(0))
                 }
             }
         }
@@ -117,7 +117,7 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         time::every(Duration::from_millis(10))
-            .map(|_| Action::Update)
+            .map(|_| Message::Update)
             .map(Message::WebView)
     }
 }

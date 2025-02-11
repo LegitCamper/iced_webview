@@ -39,6 +39,12 @@ pub enum Action {
     Resize(Size<u32>),
 }
 
+pub enum ActionResult<Message> {
+    Run(Task<()>),
+    Message(Message),
+    None,
+}
+
 /// The Basic WebView widget that creates and shows webview(s)
 pub struct WebView<Engine, Message>
 where
@@ -66,7 +72,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             .expect("Could find view index for current view. Maybe its already been closed?")
     }
 
-    fn index_as_view_id(&self, index: u32) -> usize {
+    fn index_as_view_id(&self, index: u32) -> ViewId {
         *self
             .view_ids
             .get(index as usize)
@@ -96,7 +102,9 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> Default
     }
 }
 
-impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
+impl<Engine: engines::Engine + Default + Send, Message: Send + Clone + 'static>
+    WebView<Engine, Message>
+{
     /// Create new basic WebView widget
     pub fn new() -> Self {
         Self::default()
@@ -130,54 +138,30 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
     }
 
     /// Passes update to webview
-    pub fn update(&mut self, action: Action) -> Task<Message> {
-        let mut tasks = Vec::new();
-
-        if self.current_view_index.is_some() {
-            if let Some(on_url_change) = &self.on_url_change {
-                let url = self.engine.get_url(self.get_current_view_id());
-                if self.url != url {
-                    self.url = url.clone();
-                    tasks.push(Task::done(on_url_change(url)))
-                }
-            }
-            if let Some(on_title_change) = &self.on_title_change {
-                let title = self.engine.get_title(self.get_current_view_id());
-                if self.title != title {
-                    self.title = title.clone();
-                    tasks.push(Task::done(on_title_change(title)))
-                }
-            }
-        }
-
+    pub fn update(&mut self, action: Action) -> ActionResult<Message> {
         match action {
             Action::ChangeView(index) => {
-                // TODO: get around new views not rendering??
-                {
-                    self.view_size.width += 10;
-                    self.view_size.height -= 10;
-                    self.engine.resize(self.view_size);
-                    self.view_size.width -= 10;
-                    self.view_size.height += 10;
-                    self.engine.resize(self.view_size);
-                    self.engine
-                        .request_render(self.index_as_view_id(index), self.view_size);
-                }
+                self.view_size.width += 10;
+                self.view_size.height -= 10;
+                self.engine.resize(self.view_size);
+                self.view_size.width -= 10;
+                self.view_size.height += 10;
+                self.engine.resize(self.view_size);
                 self.current_view_index = Some(index as usize);
             }
             Action::CloseCurrentView => {
                 self.engine.remove_view(self.get_current_view_id());
-                self.view_ids.remove(self.get_current_view_id());
+                self.view_ids.remove(self.get_current_view_id().into());
                 if let Some(on_view_close) = &self.on_close_view {
-                    tasks.push(Task::done(on_view_close.clone()));
+                    return ActionResult::Message(on_view_close.clone());
                 }
             }
             Action::CloseView(index) => {
                 self.engine.remove_view(self.index_as_view_id(index));
-                self.view_ids.remove(self.index_as_view_id(index));
+                self.view_ids.remove(self.index_as_view_id(index).into());
 
                 if let Some(on_view_close) = &self.on_close_view {
-                    tasks.push(Task::done(on_view_close.clone()))
+                    return ActionResult::Message(on_view_close.clone());
                 }
             }
             Action::CreateView(page_type) => {
@@ -185,7 +169,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 self.view_ids.push(id);
 
                 if let Some(on_view_create) = &self.on_create_view {
-                    tasks.push(Task::done(on_view_create.clone()))
+                    return ActionResult::Message(on_view_create.clone());
                 }
             }
             Action::GoBackward => {
@@ -209,26 +193,13 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 self.engine
                     .handle_mouse_event(self.get_current_view_id(), event, point);
             }
-            Action::Update => {
-                self.engine.update();
-                if self.current_view_index.is_some() {
-                    self.engine
-                        .request_render(self.get_current_view_id(), self.view_size);
-                }
-                return Task::batch(tasks);
-            }
+            Action::Update => self.engine.update(),
             Action::Resize(size) => {
                 self.view_size = size;
                 self.engine.resize(size);
             }
-        };
-
-        if self.current_view_index.is_some() {
-            self.engine
-                .request_render(self.get_current_view_id(), self.view_size);
         }
-
-        Task::batch(tasks)
+        ActionResult::None
     }
 
     /// Returns webview widget for the current view

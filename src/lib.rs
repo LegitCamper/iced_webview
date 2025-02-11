@@ -67,6 +67,8 @@
 //!
 //! Examples can be found in the [iced_webview repo](https://github.com/LegitCamper/iced_webview/tree/main/examples)
 //!
+// use std::{cell::RefCell, sync::Mutex};
+
 use iced::widget::image;
 
 /// Engine Trait and Engine implementations
@@ -75,14 +77,22 @@ pub use engines::{Engine, PageType, PixelFormat, ViewId};
 
 mod webview;
 pub use basic::{Action, WebView};
-pub use webview::{advanced, basic}; // pub these since its the default/reccommended method
+pub use webview::{advanced, basic};
 
-#[cfg(feature = "ultralight")]
-pub use engines::ultralight::Ultralight;
+#[cfg(feature = "blitz")]
+pub use engines::blitz::Blitz;
+
+// pub(crate) type SharedFrameBuf = Mutex<RefCell<FrameBuf>>;
+
+// pub(crate) struct FrameBuf {
+//     pixels: Vec<u8>,
+//     width: u32,
+//     height: u32,
+// }
 
 /// Image details for passing the view around
 #[derive(Clone, Debug, PartialEq)]
-pub struct ImageInfo {
+pub(crate) struct ImageInfo {
     pixels: Vec<u8>,
     width: u32,
     height: u32,

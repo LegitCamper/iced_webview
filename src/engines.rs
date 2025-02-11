@@ -3,10 +3,11 @@ use iced::keyboard;
 use iced::mouse::{self, Interaction};
 use iced::Point;
 use iced::Size;
+use rand::Rng;
 
-/// A Ultralight implementation of Engine
-#[cfg(feature = "ultralight")]
-pub mod ultralight;
+/// A Blitz implementation of Engine
+#[cfg(feature = "blitz")]
+pub mod blitz;
 
 /// Creation of new pages to be of a html type or a url
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -27,7 +28,20 @@ pub enum PixelFormat {
 
 /// Alias of usize used for controlling specific views
 /// Only used by advanced to get views, basic simply uses u32
-pub type ViewId = usize;
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct ViewId(usize);
+
+impl ViewId {
+    pub fn new() -> Self {
+        Self(rand::thread_rng().gen())
+    }
+}
+
+impl Into<usize> for ViewId {
+    fn into(self) -> usize {
+        self.0
+    }
+}
 
 /// Trait to handle multiple browser engines
 /// Currently only supports cpu renders via pixel_buffer
@@ -36,9 +50,9 @@ pub trait Engine {
     /// Used to do work in the actual browser engine
     fn update(&mut self);
     /// Has Ultralight perform a new render
-    fn render(&mut self, size: Size<u32>);
+    async fn render(&mut self, size: Size<u32>);
     /// Request that the browser engine rerender a specific view that may have been updated
-    fn request_render(&mut self, id: ViewId, size: Size<u32>);
+    async fn request_render(&mut self, id: ViewId, size: Size<u32>);
     /// Creates new a new (possibly blank) view and returns the ViewId to interact with it
     fn new_view(&mut self, size: Size<u32>, content: Option<PageType>) -> ViewId;
     /// Removes desired view
@@ -73,6 +87,6 @@ pub trait Engine {
     fn get_title(&self, id: ViewId) -> String;
     /// Gets current cursor status from view
     fn get_cursor(&self, id: ViewId) -> Interaction;
-    /// Gets cpu renderered webview
+    /// Gets cpu rendered webview
     fn get_view(&self, id: ViewId) -> &ImageInfo;
 }
