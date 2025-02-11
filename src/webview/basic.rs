@@ -40,7 +40,7 @@ pub enum Action {
 }
 
 pub enum ActionResult<Message> {
-    Run(Task<()>),
+    Run(Task<Action>),
     Message(Message),
     None,
 }
@@ -102,9 +102,7 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> Default
     }
 }
 
-impl<Engine: engines::Engine + Default + Send, Message: Send + Clone + 'static>
-    WebView<Engine, Message>
-{
+impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView<Engine, Message> {
     /// Create new basic WebView widget
     pub fn new() -> Self {
         Self::default()

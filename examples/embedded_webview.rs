@@ -3,7 +3,10 @@ use iced::{
     widget::{button, column, container, row, text},
     Element, Length, Subscription, Task,
 };
-use iced_webview::{basic::Action, Blitz, PageType, WebView};
+use iced_webview::{
+    basic::{Action, ActionResult},
+    Blitz, PageType, WebView,
+};
 use std::time::Duration;
 
 static URL: &'static str = "https://docs.rs/iced/latest/iced/index.html";
@@ -52,10 +55,19 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::WebView(msg) => self.webview.update(msg),
-            Message::CreateWebview => self
+            Message::WebView(msg) => match self.webview.update(msg) {
+                ActionResult::Run(task) => task.map(Message::WebView),
+                ActionResult::Message(msg) => Task::done(msg),
+                ActionResult::None => Task::none(),
+            },
+            Message::CreateWebview => match self
                 .webview
-                .update(Message::CreateView(PageType::Url(URL.to_string()))),
+                .update(Action::CreateView(PageType::Url(URL.to_string())))
+            {
+                ActionResult::Run(task) => task.map(Message::WebView),
+                ActionResult::Message(msg) => Task::done(msg),
+                ActionResult::None => Task::none(),
+            },
             Message::WebviewCreated => {
                 if self.current_view == None {
                     // if its the first tab change to it, after that require switching manually
