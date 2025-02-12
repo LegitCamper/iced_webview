@@ -13,6 +13,7 @@ static URL: &'static str = "https://docs.rs/iced/latest/iced/index.html";
 
 fn main() -> iced::Result {
     iced::application("An embedded web view", App::update, App::view)
+        .default_font(iced::Font::MONOSPACE)
         .subscription(App::subscription)
         .run_with(App::new)
 }
@@ -55,19 +56,11 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::WebView(msg) => match self.webview.update(msg) {
-                ActionResult::Run(task) => task.map(Message::WebView),
-                ActionResult::Message(msg) => Task::done(msg),
-                ActionResult::None => Task::none(),
-            },
-            Message::CreateWebview => match self
-                .webview
-                .update(Action::CreateView(PageType::Url(URL.to_string())))
-            {
-                ActionResult::Run(task) => task.map(Message::WebView),
-                ActionResult::Message(msg) => Task::done(msg),
-                ActionResult::None => Task::none(),
-            },
+            Message::WebView(msg) => map_update(self.webview.update(msg)),
+            Message::CreateWebview => map_update(
+                self.webview
+                    .update(Action::CreateView(PageType::Url(URL.to_string()))),
+            ),
             Message::WebviewCreated => {
                 if self.current_view == None {
                     // if its the first tab change to it, after that require switching manually
@@ -91,10 +84,10 @@ impl App {
                     } else {
                         *current_view += 1;
                     };
-                    self.webview.update(Message::ChangeView(*current_view))
+                    map_update(self.webview.update(Action::ChangeView(*current_view)))
                 } else {
                     self.current_view = Some(0);
-                    self.webview.update(Message::ChangeView(0))
+                    map_update(self.webview.update(Action::ChangeView(0)))
                 }
             }
         }
@@ -129,7 +122,17 @@ impl App {
 
     fn subscription(&self) -> Subscription<Message> {
         time::every(Duration::from_millis(10))
-            .map(|_| Message::Update)
+            .map(|_| Action::Update)
             .map(Message::WebView)
+    }
+}
+
+fn map_update(result: ActionResult<Message>) -> Task<Message> {
+    match result {
+        // ActionResult::Run(task) => task.map(Message::WebView),
+        ActionResult::RunAction(task) => task.map(Message::WebView),
+        ActionResult::RunUpdate(task) => task.then(|()| Task::none()),
+        ActionResult::Message(msg) => Task::done(msg),
+        ActionResult::None => Task::none(),
     }
 }

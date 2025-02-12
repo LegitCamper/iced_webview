@@ -40,7 +40,8 @@ pub enum Action {
 }
 
 pub enum ActionResult<Message> {
-    Run(Task<Action>),
+    RunAction(Task<Action>),
+    RunUpdate(Task<()>),
     Message(Message),
     None,
 }
@@ -191,10 +192,14 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
                 self.engine
                     .handle_mouse_event(self.get_current_view_id(), event, point);
             }
-            Action::Update => self.engine.update(),
+            Action::Update => {
+                return ActionResult::RunUpdate(Task::future(self.engine.update()));
+            }
             Action::Resize(size) => {
                 self.view_size = size;
                 self.engine.resize(size);
+                // ActionResult::Run(Task::future(self.engine.render(self.view_size)));
+                // return Action::Update;
             }
         }
         ActionResult::None

@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use crate::ImageInfo;
 use iced::keyboard;
 use iced::mouse::{self, Interaction};
@@ -46,13 +48,13 @@ impl Into<usize> for ViewId {
 /// Trait to handle multiple browser engines
 /// Currently only supports cpu renders via pixel_buffer
 /// Passing a View id that does not exist will cause a panic
-pub trait Engine {
+pub(crate) trait Engine {
     /// Used to do work in the actual browser engine
-    fn update(&mut self);
-    /// Has Ultralight perform a new render
-    async fn render(&mut self, size: Size<u32>);
+    fn update(&mut self) -> impl Future<Output = ()> + Send;
+    /// Has Engine perform a new render
+    fn render(&mut self, size: Size<u32>) -> impl Future<Output = ()> + Send;
     /// Request that the browser engine rerender a specific view that may have been updated
-    async fn request_render(&mut self, id: ViewId, size: Size<u32>);
+    fn request_render(&mut self, id: ViewId, size: Size<u32>) -> impl Future<Output = ()> + Send;
     /// Creates new a new (possibly blank) view and returns the ViewId to interact with it
     fn new_view(&mut self, size: Size<u32>, content: Option<PageType>) -> ViewId;
     /// Removes desired view

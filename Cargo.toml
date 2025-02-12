@@ -20,15 +20,25 @@ lto = "thin"
 
 [features]
 default = ["blitz"]
-blitz = ["dep:blitz-dom", "dep:blitz-renderer-vello", "dep:blitz-traits"]
+blitz = [
+  "dep:blitz-dom",
+  "dep:blitz-renderer-vello",
+  "dep:blitz-traits",
+  "dep:blitz-net",
+  "dep:blitz-html",
+]
 
 [dependencies]
 blitz-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "bf0fb5ca4a1dc556dfa90106a3f91a2ff03386cd", optional = true }
 blitz-renderer-vello = { git = "https://github.com/DioxusLabs/blitz", rev = "bf0fb5ca4a1dc556dfa90106a3f91a2ff03386cd", optional = true }
 blitz-traits = { git = "https://github.com/DioxusLabs/blitz", rev = "bf0fb5ca4a1dc556dfa90106a3f91a2ff03386cd", optional = true }
+blitz-net = { git = "https://github.com/DioxusLabs/blitz", rev = "bf0fb5ca4a1dc556dfa90106a3f91a2ff03386cd", optional = true }
+blitz-html = { git = "https://github.com/DioxusLabs/blitz", rev = "bf0fb5ca4a1dc556dfa90106a3f91a2ff03386cd", optional = true }
 iced = { version = "0.13", features = ["advanced", "image", "tokio", "lazy"] }
 clipboard-rs = "0.2.1"
 rand = "0.8.5"
 smol_str = "0.2.2"
 url = "2.5.2"
 html = "0.6.3"
+iced_fonts = "0.1.1"
+tokio = "1.43.0"
