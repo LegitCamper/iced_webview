@@ -167,14 +167,14 @@ impl<Engine: engines::Engine + Default, Message: Send + Clone + 'static> WebView
             }
             Action::CloseCurrentView => {
                 self.engine.remove_view(self.get_current_view_id());
-                self.view_ids.remove(self.get_current_view_id());
+                self.view_ids.remove(self.current_view_index);
                 if let Some(on_view_close) = &self.on_close_view {
                     tasks.push(Task::done(on_view_close.clone()));
                 }
             }
             Action::CloseView(index) => {
                 self.engine.remove_view(self.index_as_view_id(index));
-                self.view_ids.remove(self.index_as_view_id(index));
+                self.view_ids.remove(index as usize);
 
                 if let Some(on_view_close) = &self.on_close_view {
                     tasks.push(Task::done(on_view_close.clone()))
