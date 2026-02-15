@@ -1,6 +1,6 @@
 [package]
 name = "iced_webview"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2021"
 rust-version = "1.81.0"
 description = "An easily embedded webview library for iced"
@@ -27,7 +27,7 @@ docs_only = []
 
 [dependencies]
 clipboard-rs = "0.2.1"
-iced = { version = "0.13", features = ["advanced", "image", "tokio", "lazy"] }
+iced = { version = "0.14", features = ["advanced", "image", "tokio", "lazy"] }
 rand = "0.8.5"
 smol_str = "0.2.2"
 ul-next = { version = "0.4", optional = true }

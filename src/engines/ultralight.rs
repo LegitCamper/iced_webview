@@ -184,7 +184,7 @@ impl Engine for Ultralight {
                 Cursor::VerticalText => mouse::Interaction::Text,
                 Cursor::IBeam => mouse::Interaction::Text,
                 Cursor::Cross => mouse::Interaction::Crosshair,
-                Cursor::Wait => mouse::Interaction::Working,
+                Cursor::Wait => mouse::Interaction::Wait,
                 Cursor::Grabbing => mouse::Interaction::Grab,
                 Cursor::NorthSouthResize => mouse::Interaction::ResizingVertically,
                 Cursor::EastWestResize => mouse::Interaction::ResizingHorizontally,
@@ -226,7 +226,7 @@ impl Engine for Ultralight {
             .get_view(id)
             .cursor
             .write()
-            .expect("Failed cursor poisoned") = mouse::Interaction::Working;
+            .expect("Failed cursor poisoned") = mouse::Interaction::Progress;
         match page_type {
             PageType::Url(url) => self
                 .get_view_mut(id)
@@ -266,7 +266,7 @@ impl Engine for Ultralight {
                 modifiers,
                 text,
                 modified_key,
-                physical_key: _,
+                ..
             } => iced_key_to_ultralight_key(
                 KeyPress::Press,
                 Some(modified_key),
@@ -279,6 +279,7 @@ impl Engine for Ultralight {
                 key,
                 location,
                 modifiers,
+                ..
             } => iced_key_to_ultralight_key(
                 KeyPress::Unpress,
                 None,
@@ -400,7 +401,7 @@ impl Engine for Ultralight {
     fn get_cursor(&self, id: ViewId) -> mouse::Interaction {
         match self.get_view(id).cursor.read() {
             Ok(cursor) => *cursor,
-            Err(_) => mouse::Interaction::Working,
+            Err(_) => mouse::Interaction::Idle,
         }
     }
 

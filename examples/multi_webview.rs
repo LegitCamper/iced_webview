@@ -13,9 +13,10 @@ static URL1: &'static str = "https://docs.rs/iced/latest/iced/index.html";
 static URL2: &'static str = "https://github.com/LegitCamper/iced_webview";
 
 fn main() -> iced::Result {
-    iced::application("An multi webview application", App::update, App::view)
+    iced::application(App::new, App::update, App::view)
+        .title("An multi webview application")
         .subscription(App::subscription)
-        .run_with(App::new)
+        .run()
 }
 
 #[derive(Debug, Clone)]

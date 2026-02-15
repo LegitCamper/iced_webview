@@ -6,6 +6,13 @@ A library to embed Web views in iced applications
 
 > [Ultralight has its own license](https://ultralig.ht/pricing/) that should be reviewed before deciding if it works for you
 
+## Compatibility
+
+| iced | iced_webview |
+|------|--------------|
+| 0.14 | 0.0.6        |
+| 0.13 | 0.0.5        |
+
 #### examples:
 
 ##### `examples/embedded_webview`
