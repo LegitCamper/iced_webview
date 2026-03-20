@@ -2,6 +2,17 @@
 
 A library to embed Web views in iced applications
 
+## Community Improvements
+
+A huge shoutout to @franzos for creating an improved fork of this project:
+[franzos/iced_webview_v2](https://github.com/franzos/iced_webview_v2)
+
+Their version includes more features, many more engine options, and iced 14.0 support
+
+If you're looking to use this project today, you should probably use their fork instead!
+
+## Notes
+
 > Note: Currently this library only supports [Ultralight]/Webkit, but more rendering engines are planned to be supported.
 
 > [Ultralight has its own license](https://ultralig.ht/pricing/) that should be reviewed before deciding if it works for you
@@ -26,7 +37,7 @@ cargo run --example multi_webview --features ultralight-resources
 
 Ultralight requires runtime resources. (cacert.pem, icudt67l.dat)
 
-> You can either set the path to them with the `ULTRALIGHT_RESOURCES_DIR` env. This varible can also be set in `.cargo/config.toml`. The resouces direcory can be downloaded from [Ultralight SDK]
+> You can either set the path to them with the `ULTRALIGHT_RESOURCES_DIR` env. This variable can also be set in `.cargo/config.toml`. The resources directory can be downloaded from [Ultralight SDK]
 
 > Or Rust will do its best symlink the directory with `--features ultralight-resources`. If this fails please use `ULTRALIGHT_RESOURCES_DIR`
 
