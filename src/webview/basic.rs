@@ -1,12 +1,9 @@
 use iced::advanced::{
-    self,
-    graphics::core::event,
-    layout,
+    self, layout,
     renderer::{self},
     widget::Tree,
     Clipboard, Layout, Shell, Widget,
 };
-use iced::event::Status;
 use iced::keyboard;
 use iced::mouse::{self, Interaction};
 use iced::widget::image::{Handle, Image};
@@ -266,7 +263,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         _tree: &mut Tree,
         _renderer: &Renderer,
         limits: &layout::Limits,
@@ -296,17 +293,17 @@ where
         )
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         _state: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         _renderer: &Renderer,
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Action>,
         _viewport: &Rectangle,
-    ) -> event::Status {
+    ) {
         let size = Size::new(layout.bounds().width as u32, layout.bounds().height as u32);
         if self.image_info.width != size.width || self.image_info.height != size.height {
             shell.publish(Action::Resize(size));
@@ -314,16 +311,15 @@ where
 
         match event {
             Event::Keyboard(event) => {
-                shell.publish(Action::SendKeyboardEvent(event));
+                shell.publish(Action::SendKeyboardEvent(event.clone()));
             }
             Event::Mouse(event) => {
                 if let Some(point) = cursor.position_in(layout.bounds()) {
-                    shell.publish(Action::SendMouseEvent(event, point));
+                    shell.publish(Action::SendMouseEvent(event.clone(), point));
                 }
             }
             _ => (),
         }
-        Status::Ignored
     }
 
     fn mouse_interaction(

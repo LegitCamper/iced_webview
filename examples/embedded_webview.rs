@@ -9,9 +9,10 @@ use std::time::Duration;
 static URL: &'static str = "https://docs.rs/iced/latest/iced/index.html";
 
 fn main() -> iced::Result {
-    iced::application("An embedded web view", App::update, App::view)
+    iced::application(App::new, App::update, App::view)
+        .title("An embedded web view")
         .subscription(App::subscription)
-        .run_with(App::new)
+        .run()
 }
 
 #[derive(Debug, Clone)]

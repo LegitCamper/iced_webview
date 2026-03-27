@@ -17,6 +17,13 @@ If you're looking to use this project today, you should probably use their fork 
 
 > [Ultralight has its own license](https://ultralig.ht/pricing/) that should be reviewed before deciding if it works for you
 
+## Compatibility
+
+| iced | iced_webview |
+|------|--------------|
+| 0.14 | 0.0.6        |
+| 0.13 | 0.0.5        |
+
 #### examples:
 
 ##### `examples/embedded_webview`
